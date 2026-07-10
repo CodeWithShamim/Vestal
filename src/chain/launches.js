@@ -43,6 +43,28 @@ export async function fetchChainLaunches(opts = {}) {
 const LOG_CHUNK_BLOCKS = 90_000n;
 const MAX_LOG_CHUNKS = 10;
 
+/**
+ * Enforcement actions already seen this session, per covenant (keyed by
+ * txHash:logIndex). Same rationale as market.js's seenSwaps: the public
+ * RPC is load-balanced across backends with inconsistent log history, so
+ * a single query can come back empty even though the events exist. Every
+ * fetch merges into this cache and returns the union — an action, once
+ * observed, never drops out of the timeline for the session.
+ */
+const seenActions = new Map();
+
+/** One chunk of EnforcementAction logs, retried against flaky backends. */
+async function getEnforcementChunk(client, covenant, range, attempts = 3) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await client.getContractEvents({ ...covenant, eventName: 'EnforcementAction', ...range });
+    } catch {
+      if (i < attempts) await new Promise((r) => setTimeout(r, 250 * i));
+    }
+  }
+  return [];
+}
+
 async function fetchEnforcementLog(client, covenant, createdAtBlock, currentBlock) {
   const floor = createdAtBlock > 0n ? createdAtBlock : 0n;
   const chunks = [];
@@ -52,12 +74,19 @@ async function fetchEnforcementLog(client, covenant, createdAtBlock, currentBloc
     chunks.push({ fromBlock: from, toBlock: to });
     to = from - 1n;
   }
+  // Each chunk is queried twice: requests land on different backends, so
+  // duplicates double the odds of hitting one with complete log history.
   const results = await Promise.all(
-    chunks.map((c) =>
-      client.getContractEvents({ ...covenant, eventName: 'EnforcementAction', ...c }).catch(() => []),
-    ),
+    chunks.flatMap((c) => [
+      getEnforcementChunk(client, covenant, c),
+      getEnforcementChunk(client, covenant, c),
+    ]),
   );
-  return results.flat();
+
+  let cache = seenActions.get(covenant.address);
+  if (!cache) seenActions.set(covenant.address, (cache = new Map()));
+  for (const l of results.flat()) cache.set(`${l.transactionHash}:${l.logIndex}`, l);
+  return [...cache.values()];
 }
 
 async function mapLaunch(client, entry, currentBlock) {

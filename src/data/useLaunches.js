@@ -3,21 +3,37 @@
  * CovenantRegistry (src/chain/launches.js) — there is no mock fallback.
  * Launch ids are token addresses, so /token/:id routes are addresses.
  * refreshLaunches() refetches after a deploy so a new launch appears
- * without a reload.
+ * without a reload. While any page is subscribed the store re-polls:
+ * the public RPC's backends disagree on log history, so repeated
+ * fetches let the enforcement-log session cache converge on the
+ * complete set (and keep guardian heartbeat/current block live).
  */
 import { useEffect, useSyncExternalStore } from 'react';
 import { CHAIN_READS_ENABLED } from '../config/ritual.js';
+
+const POLL_MS = 30_000;
 
 const state = {
   /** @type {{ launches: import('./launches.js').Launch[], currentBlock: number, pending: boolean, error: string|null }} */
   snapshot: { launches: [], currentBlock: 0, pending: CHAIN_READS_ENABLED, error: null },
   listeners: new Set(),
   fetched: false,
+  timer: null,
 };
 
 function subscribe(listener) {
   state.listeners.add(listener);
-  return () => state.listeners.delete(listener);
+  // Poll only while someone is mounted; subscribe never runs during SSR.
+  if (state.listeners.size === 1 && CHAIN_READS_ENABLED) {
+    state.timer = setInterval(fetchLaunches, POLL_MS);
+  }
+  return () => {
+    state.listeners.delete(listener);
+    if (state.listeners.size === 0 && state.timer) {
+      clearInterval(state.timer);
+      state.timer = null;
+    }
+  };
 }
 
 function notify() {
@@ -36,10 +52,14 @@ async function fetchLaunches() {
     state.snapshot = { launches, currentBlock, pending: false, error: null };
   } catch (err) {
     console.warn('[vestal] chain read failed:', err);
+    // Keep the last good snapshot on a failed background poll — only
+    // surface the error when there's no data to show yet.
     state.snapshot = {
       ...state.snapshot,
       pending: false,
-      error: 'Could not reach Ritual Chain — check your connection and reload.',
+      error: state.snapshot.launches.length
+        ? null
+        : 'Could not reach Ritual Chain — check your connection and reload.',
     };
   }
   notify();
