@@ -23,6 +23,27 @@ const BLOCKS_24H = Math.round(86_400 / BLOCK_TIME_SECONDS);
 
 const toNative = (wei) => Number(wei) / 1e18;
 
+/**
+ * Trades already seen this session, per pool (keyed by txHash:logIndex).
+ * The public RPC is load-balanced across nodes with inconsistent log
+ * history — the same getLogs query can return a swap on one call and
+ * omit it on the next — so every fetch merges into this cache and the
+ * union is what the UI sees. A swap, once observed, stays for the session.
+ */
+const seenSwaps = new Map();
+
+/** One chunk of Swap logs, retried against flaky/stale RPC backends. */
+async function getSwapChunk(client, pool, range, attempts = 3) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await client.getContractEvents({ address: pool, abi: POOL_ABI, eventName: 'Swap', ...range });
+    } catch {
+      if (i < attempts) await new Promise((r) => setTimeout(r, 250 * i));
+    }
+  }
+  return [];
+}
+
 async function fetchSwaps(client, pool, currentBlock) {
   const chunks = [];
   let to = currentBlock;
@@ -32,14 +53,16 @@ async function fetchSwaps(client, pool, currentBlock) {
     if (from === 0n) break;
     to = from - 1n;
   }
+  // Each chunk is queried twice: requests land on different backends, so
+  // duplicates double the odds of hitting one with complete log history.
   const results = await Promise.all(
-    chunks.map((c) =>
-      client.getContractEvents({ address: pool, abi: POOL_ABI, eventName: 'Swap', ...c }).catch(() => []),
-    ),
+    chunks.flatMap((c) => [getSwapChunk(client, pool, c), getSwapChunk(client, pool, c)]),
   );
-  return results
-    .flat()
-    .map((l) => ({
+
+  let cache = seenSwaps.get(pool);
+  if (!cache) seenSwaps.set(pool, (cache = new Map()));
+  for (const l of results.flat()) {
+    cache.set(`${l.transactionHash}:${l.logIndex}`, {
       block: Number(l.blockNumber),
       logIndex: Number(l.logIndex ?? 0),
       txHash: l.transactionHash,
@@ -48,8 +71,9 @@ async function fetchSwaps(client, pool, currentBlock) {
       native: toNative(l.args.nativeAmount),
       tokens: toNative(l.args.tokenAmount),
       price: Number(l.args.priceX18) / 1e18,
-    }))
-    .sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
+    });
+  }
+  return [...cache.values()].sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
 }
 
 /**

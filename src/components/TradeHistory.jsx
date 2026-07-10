@@ -9,7 +9,7 @@ import { blocksToApproxTime, fmtNative, shortAddr } from '../data/launches.js';
 import { EXPLORER_URL, RITUAL_TESTNET } from '../config/ritual.js';
 
 const SYM = RITUAL_TESTNET.nativeCurrency.symbol;
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
 /** Token amounts: compact past 1M, whole-ish above 1, precise below. */
 const fmtAmount = (v) => {
@@ -24,24 +24,27 @@ const thClass = 'px-3 py-3 font-medium first:pl-6 last:pr-6';
 
 export default function TradeHistory({ trades, symbol, currentBlock }) {
   const [filter, setFilter] = useState('all');
-  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [page, setPage] = useState(0);
+
+  const buys = trades.filter((t) => t.isBuy).length;
+  const counts = { all: trades.length, buys, sells: trades.length - buys };
 
   const filtered = [...trades]
     .reverse()
     .filter((t) => filter === 'all' || t.isBuy === (filter === 'buys'));
-  const rows = filtered.slice(0, limit);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount - 1);
+  const rows = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
 
   function switchFilter(next) {
     setFilter(next);
-    setLimit(PAGE_SIZE);
+    setPage(0);
   }
 
   return (
     <Card className="mt-6 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-linefaint px-6 py-4">
-        <h2 className="font-display text-lg font-medium text-cream">
-          Transactions <span className="ml-1 text-sm font-normal text-faint">{trades.length}</span>
-        </h2>
+        <h2 className="font-display text-lg font-medium text-cream">Transactions</h2>
         <div className="flex rounded-lg border border-line p-0.5">
           {FILTERS.map((f) => (
             <button
@@ -52,7 +55,7 @@ export default function TradeHistory({ trades, symbol, currentBlock }) {
                 filter === f ? 'bg-ember/20 text-cream' : 'text-faint hover:text-fog'
               }`}
             >
-              {f}
+              {f} <span className={filter === f ? 'text-fog' : ''}>{counts[f]}</span>
             </button>
           ))}
         </div>
@@ -132,14 +135,28 @@ export default function TradeHistory({ trades, symbol, currentBlock }) {
         <span className="text-xs text-faint">
           Read live from the pool's on-chain Swap events — ages are block-derived approximations.
         </span>
-        {filtered.length > limit && (
-          <button
-            type="button"
-            className="text-xs font-semibold text-gold transition-colors hover:text-cream"
-            onClick={() => setLimit((n) => n + PAGE_SIZE)}
-          >
-            Show {Math.min(PAGE_SIZE, filtered.length - limit)} more
-          </button>
+        {pageCount > 1 && (
+          <div className="flex items-center gap-3 text-xs">
+            <button
+              type="button"
+              disabled={current === 0}
+              onClick={() => setPage(current - 1)}
+              className="font-semibold text-gold transition-colors hover:text-cream disabled:cursor-not-allowed disabled:text-faint"
+            >
+              ‹ Prev
+            </button>
+            <span className="text-faint">
+              Page {current + 1} of {pageCount}
+            </span>
+            <button
+              type="button"
+              disabled={current >= pageCount - 1}
+              onClick={() => setPage(current + 1)}
+              className="font-semibold text-gold transition-colors hover:text-cream disabled:cursor-not-allowed disabled:text-faint"
+            >
+              Next ›
+            </button>
+          </div>
         )}
       </div>
     </Card>

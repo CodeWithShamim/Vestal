@@ -17,13 +17,21 @@ export function useMarket(tokenAddress) {
       setState({ market, pending: false, error: null });
     } catch (err) {
       console.warn('[vestal] market read failed:', err);
-      setState({ market: null, pending: false, error: 'Could not read the market from Ritual Chain.' });
+      // Keep the last good snapshot on a failed background poll.
+      setState((s) =>
+        s.market ? s : { market: null, pending: false, error: 'Could not read the market from Ritual Chain.' },
+      );
     }
   }, [tokenAddress]);
 
+  // Poll while mounted: the public RPC's backends disagree on log
+  // history, so repeated fetches let the session trade cache converge
+  // on the complete set (and keep price/reserves live).
   useEffect(() => {
     setState({ market: null, pending: true, error: null });
     refresh();
+    const timer = setInterval(refresh, 15_000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
   return { ...state, refresh };
