@@ -7,6 +7,7 @@ import TokenAvatar from '../components/TokenAvatar.jsx';
 import FlameMark from '../components/FlameMark.jsx';
 import { CURRENT_BLOCK, fmtBlock, mockHex, shortAddr, shortHash } from '../data/launches.js';
 import { BLOCK_TIME_SECONDS, RITUAL_TESTNET } from '../config/ritual.js';
+import { useWallet } from '../chain/wallet.js';
 
 const STEPS = ['Token basics', 'Tokenomics', 'Guardian terms', 'Review & deploy'];
 
@@ -71,7 +72,8 @@ export default function Launch() {
   // Step 4 — review
   const [signature, setSignature] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
-  const [wallet, setWallet] = useState('idle'); // idle | connecting | connected | deployed
+  const [deployed, setDeployed] = useState(false);
+  const wallet = useWallet();
 
   const allocTotal = alloc.publicLp + alloc.team + alloc.treasury + alloc.community;
   const allocations = [
@@ -109,12 +111,7 @@ export default function Launch() {
     `Type ${sym || 'your symbol'} to sign, and acknowledge immutability.`,
   ];
 
-  function connectAndDeploy() {
-    setWallet('connecting');
-    setTimeout(() => setWallet('connected'), 900);
-  }
-
-  if (wallet === 'deployed') {
+  if (deployed) {
     const guardianAddr = mockHex(`wizard:${sym}:guardian`, 20);
     const covenantHash = mockHex(`wizard:${sym}:covenant`);
     return (
@@ -355,23 +352,31 @@ export default function Launch() {
               />
             </Field>
 
-            {wallet === 'connected' ? (
-              <button type="button" className="btn-ember w-full" disabled={!canNext} onClick={() => setWallet('deployed')}>
+            {wallet.onRitual ? (
+              <button type="button" className="btn-ember w-full" disabled={!canNext} onClick={() => setDeployed(true)}>
                 Deploy covenant to {RITUAL_TESTNET.name}
+              </button>
+            ) : wallet.connected ? (
+              <button type="button" className="btn-ember w-full" onClick={wallet.switchToRitual}>
+                Switch wallet to {RITUAL_TESTNET.name}
               </button>
             ) : (
               <button
                 type="button"
                 className="btn-ember w-full disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!canNext || wallet === 'connecting'}
-                onClick={connectAndDeploy}
+                disabled={!canNext || wallet.status === 'connecting'}
+                onClick={wallet.connect}
               >
-                {wallet === 'connecting' ? 'Connecting…' : 'Connect wallet to deploy'}
+                {wallet.status === 'connecting' ? 'Connecting…' : 'Connect wallet to deploy'}
               </button>
             )}
+            {wallet.error && <p className="text-xs leading-relaxed text-status-warn">{wallet.error}</p>}
             <p className="text-xs leading-relaxed text-faint">
-              Wallet connection is mocked; real integration wires viem/wagmi to the chain constants in{' '}
-              <span className="mono">src/config/ritual.js</span> (rpcUrl, chainId, precompile addresses).
+              {wallet.connected ? (
+                <>Connected as <span className="mono text-fog">{shortAddr(wallet.address)}</span>. </>
+              ) : null}
+              Deployment is a dry run for now — the factory write lands next; connection and network state are
+              live against the constants in <span className="mono">src/config/ritual.js</span>.
             </p>
           </div>
         )}

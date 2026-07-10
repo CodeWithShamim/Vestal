@@ -32,11 +32,39 @@ export async function fetchChainLaunches(opts = {}) {
     client.readContract({ address: registry, abi: REGISTRY_ABI, functionName: 'allLaunches' }),
   ]);
 
-  const launches = await Promise.all(entries.map((e) => mapLaunch(client, e)));
+  const launches = await Promise.all(entries.map((e) => mapLaunch(client, e, currentBlock)));
   return { currentBlock: num(currentBlock), launches };
 }
 
-async function mapLaunch(client, entry) {
+/**
+ * Public RPCs cap eth_getLogs ranges (Ritual testnet: 100k blocks), so
+ * the enforcement log is fetched in chunks, newest window first, from
+ * the covenant's creation block. Bounded to MAX_LOG_CHUNKS so an old
+ * covenant costs a fixed number of requests — tranche released-state
+ * comes from contract storage, not logs, so older entries only trim
+ * the visible timeline.
+ */
+const LOG_CHUNK_BLOCKS = 90_000n;
+const MAX_LOG_CHUNKS = 10;
+
+async function fetchEnforcementLog(client, covenant, createdAtBlock, currentBlock) {
+  const floor = createdAtBlock > 0n ? createdAtBlock : 0n;
+  const chunks = [];
+  let to = currentBlock;
+  for (let i = 0; i < MAX_LOG_CHUNKS && to >= floor; i++) {
+    const from = to - LOG_CHUNK_BLOCKS + 1n > floor ? to - LOG_CHUNK_BLOCKS + 1n : floor;
+    chunks.push({ fromBlock: from, toBlock: to });
+    to = from - 1n;
+  }
+  const results = await Promise.all(
+    chunks.map((c) =>
+      client.getContractEvents({ ...covenant, eventName: 'EnforcementAction', ...c }).catch(() => []),
+    ),
+  );
+  return results.flat();
+}
+
+async function mapLaunch(client, entry, currentBlock) {
   const covenant = { address: entry.covenant, abi: COVENANT_ABI };
   const token = { address: entry.token, abi: TOKEN_ABI };
 
@@ -46,7 +74,7 @@ async function mapLaunch(client, entry) {
     client.readContract({ ...covenant, functionName: 'terms' }),
     client.readContract({ ...covenant, functionName: 'vesting' }),
     client.readContract({ ...covenant, functionName: 'guardianSummary' }),
-    client.getContractEvents({ ...covenant, eventName: 'EnforcementAction', fromBlock: 0n }),
+    fetchEnforcementLog(client, covenant, BigInt(entry.createdAtBlock), currentBlock),
   ]);
 
   const [lpLockUntilBlock, lpLockedBps, devWalletCapBps, , monitorEveryBlocks] = terms;

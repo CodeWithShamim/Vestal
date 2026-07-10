@@ -1,9 +1,9 @@
 /**
  * Ritual Chain testnet configuration.
  *
- * Everything the app knows about the chain lives here. When wallet
- * integration lands (viem/wagmi), build the chain object from these
- * constants — no UI code should hardcode chain values.
+ * Everything the app knows about the chain lives here. The viem chain
+ * object for wallet connection is built from these constants in
+ * src/chain/wallet.js — no UI code should hardcode chain values.
  *
  * Placeholders are marked; replace them with the published testnet
  * values before wiring real reads/writes.
@@ -25,8 +25,12 @@ export const CHAIN_ID = Number(env.VITE_CHAIN_ID ?? 1979);
 /** Block explorer base URL. */
 export const EXPLORER_URL = 'https://explorer.ritualfoundation.org';
 
-/** Approximate block time in seconds, used for countdown display only. */
-export const BLOCK_TIME_SECONDS = 2;
+/**
+ * Approximate block time in seconds, used for countdown display only.
+ * Measured against wall clock on testnet 2026-07-10 (~5 blocks/s).
+ * Note: the chain's block timestamps are in milliseconds, not seconds.
+ */
+export const BLOCK_TIME_SECONDS = 0.2;
 
 /**
  * Ritual precompile addresses used by Vestal guardians.
@@ -46,10 +50,10 @@ export const PRECOMPILES = {
   PERSISTENT_AGENT_0x0820: '0x0000000000000000000000000000000000000820',
 };
 
-/** Vestal protocol contracts on testnet. PLACEHOLDERS until deployment. */
+/** Vestal protocol contracts, deployed to Ritual Chain testnet 2026-07-10. */
 export const VESTAL_CONTRACTS = {
-  LAUNCH_FACTORY: env.VITE_LAUNCH_FACTORY || '0x0000000000000000000000000000000000000000',
-  COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0x0000000000000000000000000000000000000000',
+  LAUNCH_FACTORY: env.VITE_LAUNCH_FACTORY || '0x31531123eB88B51E6F64e3d910Dc14a5b9213070',
+  COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0xCa6B29576B41e6563Df1c9dB54C7d9943eBa6c28',
 };
 
 /** True when a registry address is configured — chain reads replace mocks. */

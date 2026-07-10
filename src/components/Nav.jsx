@@ -1,12 +1,56 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import FlameMark from './FlameMark.jsx';
+import { useWallet } from '../chain/wallet.js';
+import { shortAddr } from '../data/launches.js';
 
 const links = [
   { to: '/explore', label: 'Explore' },
   { to: '/launch', label: 'Launch' },
   { to: '/docs', label: 'Docs' },
 ];
+
+function WalletButton({ className = '' }) {
+  const { address, status, connected, onRitual, connect, disconnect, switchToRitual } = useWallet();
+
+  if (connected && !onRitual) {
+    return (
+      <button
+        type="button"
+        onClick={switchToRitual}
+        className={`rounded-md border border-status-warn/40 px-3 py-2 text-xs font-medium text-status-warn transition-colors hover:border-status-warn ${className}`}
+      >
+        Wrong network — switch
+      </button>
+    );
+  }
+
+  if (connected) {
+    return (
+      <button
+        type="button"
+        onClick={disconnect}
+        title="Disconnect wallet"
+        className={`group flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs transition-colors hover:border-ember/50 ${className}`}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-status-good" aria-hidden="true" />
+        <span className="mono text-cream">{shortAddr(address)}</span>
+        <span className="hidden text-faint group-hover:text-fog sm:inline">disconnect</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={connect}
+      disabled={status === 'connecting'}
+      className={`btn-ghost !px-4 !py-2 text-xs disabled:opacity-60 ${className}`}
+    >
+      {status === 'connecting' ? 'Connecting…' : 'Connect Wallet'}
+    </button>
+  );
+}
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
@@ -34,6 +78,7 @@ export default function Nav() {
           <Link to="/launch" className="btn-ember !px-4 !py-2 text-xs">
             Launch a Token
           </Link>
+          <WalletButton />
         </nav>
 
         <button
@@ -64,6 +109,7 @@ export default function Nav() {
             <Link to="/launch" className="btn-ember w-full text-xs" onClick={() => setOpen(false)}>
               Launch a Token
             </Link>
+            <WalletButton className="w-full justify-center" />
           </div>
         </nav>
       )}

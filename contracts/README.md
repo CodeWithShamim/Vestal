@@ -71,6 +71,23 @@ never reach covenant/factory/token logic. `Deploy.s.sol` auto-detects: if slot
 `0x080C` has code it deploys the Ritual provider, otherwise the mock (guardian
 = deployer) so the full flow runs on anvil today.
 
+## Deployments
+
+**Ritual Chain testnet** (chain id 1979, rpc.ritualfoundation.org, deployed 2026-07-10):
+
+| Contract          | Address                                      |
+| ----------------- | -------------------------------------------- |
+| CovenantRegistry  | `0xCa6B29576B41e6563Df1c9dB54C7d9943eBa6c28` |
+| VestalLaunchFactory | `0x31531123eB88B51E6F64e3d910Dc14a5b9213070` |
+| MockGuardianProvider | `0x3C09d834b9ad1c3e89bC37C81a622C0572aE5B18` |
+| Demo NLT token    | `0xd959047ac90112Cfe99D4F2EA1018F4b44467ad8` |
+| Demo covenant     | `0x7aC9D0c3a0640cD3a7F740ed667F38a701D71EF1` |
+
+The agent precompile slots have no code on the current testnet, so the mock
+provider is deployed (guardian = deployer EOA). Swap to RitualGuardianProvider
+when the precompiles ship. Note: the chain runs ~5 blocks/s and block
+timestamps are in **milliseconds**.
+
 ## Develop
 
 ```bash
