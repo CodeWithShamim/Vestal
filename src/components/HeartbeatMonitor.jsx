@@ -7,7 +7,7 @@ import { fmtBlock, blocksToApproxTime } from '../data/launches.js';
 export default function HeartbeatMonitor({ guardian, currentBlock }) {
   const blocksSince = currentBlock - guardian.lastHeartbeatBlock;
   const late = guardian.status === 'reviving';
-  const traceColor = late ? '#98ABC4' : '#F2601F';
+  const traceColor = late ? 'var(--color-status-info)' : 'var(--color-ember)';
 
   return (
     <div className="rounded-lg border border-linefaint bg-ink/60 p-4">

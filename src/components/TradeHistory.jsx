@@ -5,18 +5,11 @@
  */
 import { useState } from 'react';
 import Card from './Card.jsx';
-import { blocksToApproxTime, fmtNative, shortAddr } from '../data/launches.js';
+import { blocksToApproxTime, fmtAmount, fmtNative, shortAddr } from '../data/launches.js';
 import { EXPLORER_URL, RITUAL_TESTNET } from '../config/ritual.js';
 
 const SYM = RITUAL_TESTNET.nativeCurrency.symbol;
 const PAGE_SIZE = 10;
-
-/** Token amounts: compact past 1M, whole-ish above 1, precise below. */
-const fmtAmount = (v) => {
-  if (v >= 1_000_000) return v.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 });
-  if (v >= 1) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
-  return v.toLocaleString('en-US', { maximumFractionDigits: 6 });
-};
 
 const FILTERS = ['all', 'buys', 'sells'];
 

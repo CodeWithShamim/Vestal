@@ -21,7 +21,7 @@ export default function TrustMeter({ score, compact = false }) {
           className="h-full rounded-full"
           style={{
             width: `${score}%`,
-            background: 'linear-gradient(90deg, #B8410F, #F2601F 70%, #FFB347)',
+            background: 'linear-gradient(90deg, var(--color-emberdim), var(--color-ember) 70%, var(--color-gold))',
           }}
         />
       </div>

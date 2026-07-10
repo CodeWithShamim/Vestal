@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import FlameMark from './FlameMark.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import { useWallet } from '../chain/wallet.js';
 import { shortAddr } from '../data/launches.js';
 
@@ -80,23 +81,27 @@ export default function Nav() {
             Launch a Token
           </Link>
           <WalletButton />
+          <ThemeToggle />
         </nav>
 
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-fog md:hidden"
-          aria-expanded={open}
-          aria-label="Toggle menu"
-          onClick={() => setOpen(!open)}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            {open ? (
-              <path d="M3 3l10 10M13 3 3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            ) : (
-              <path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            )}
-          </svg>
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-fog"
+            aria-expanded={open}
+            aria-label="Toggle menu"
+            onClick={() => setOpen(!open)}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              {open ? (
+                <path d="M3 3l10 10M13 3 3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              ) : (
+                <path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {open && (

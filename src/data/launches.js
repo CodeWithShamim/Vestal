@@ -100,6 +100,13 @@ export function shortHash(h) {
   return `${h.slice(0, 10)}…${h.slice(-6)}`;
 }
 
+/** Token amounts: compact past 1M, whole-ish above 1, precise below. */
+export function fmtAmount(v) {
+  if (v >= 1_000_000) return v.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 });
+  if (v >= 1) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return v.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+
 const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉';
 
 /**

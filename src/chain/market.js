@@ -44,10 +44,15 @@ async function getSwapChunk(client, pool, range, attempts = 3) {
   return [];
 }
 
-async function fetchSwaps(client, pool, currentBlock) {
+/**
+ * Merged, ascending swap history for a pool. `maxChunks` bounds the
+ * scanned block window — the home-page activity feed passes a smaller
+ * one than the token page's full history.
+ */
+export async function fetchSwaps(client, pool, currentBlock, maxChunks = MAX_LOG_CHUNKS) {
   const chunks = [];
   let to = currentBlock;
-  for (let i = 0; i < MAX_LOG_CHUNKS && to >= 0n; i++) {
+  for (let i = 0; i < maxChunks && to >= 0n; i++) {
     const from = to > LOG_CHUNK_BLOCKS ? to - LOG_CHUNK_BLOCKS + 1n : 0n;
     chunks.push({ fromBlock: from, toBlock: to });
     if (from === 0n) break;

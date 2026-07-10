@@ -43,22 +43,22 @@ export default function Sparkline({ series, height = 180, formatValue = (v) => v
       >
         <defs>
           <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#F2601F" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#F2601F" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--color-ember)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--color-ember)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {/* recessive gridlines */}
         {[0.25, 0.5, 0.75].map((t) => (
-          <line key={t} x1={pad} x2={w - pad} y1={h * t} y2={h * t} stroke="#26262F" strokeWidth="1" strokeDasharray="2 6" />
+          <line key={t} x1={pad} x2={w - pad} y1={h * t} y2={h * t} stroke="var(--color-line)" strokeWidth="1" strokeDasharray="2 6" />
         ))}
         <path d={areaPath} fill="url(#spark-fill)" />
-        <path d={linePath} fill="none" stroke="#F2601F" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={linePath} fill="none" stroke="var(--color-ember)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {/* latest-value marker */}
-        <circle cx={x(last)} cy={y(series[last])} r="4" fill="#FFB347" stroke="#131318" strokeWidth="2" />
+        <circle cx={x(last)} cy={y(series[last])} r="4" fill="var(--color-gold)" stroke="var(--color-surface)" strokeWidth="2" />
         {hover !== null && (
           <g>
-            <line x1={x(hover)} x2={x(hover)} y1={pad} y2={h - pad} stroke="#9A948A" strokeWidth="1" strokeDasharray="3 3" />
-            <circle cx={x(hover)} cy={y(series[hover])} r="4.5" fill="#F2601F" stroke="#131318" strokeWidth="2" />
+            <line x1={x(hover)} x2={x(hover)} y1={pad} y2={h - pad} stroke="var(--color-fog)" strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx={x(hover)} cy={y(series[hover])} r="4.5" fill="var(--color-ember)" stroke="var(--color-surface)" strokeWidth="2" />
           </g>
         )}
       </svg>

@@ -3,9 +3,11 @@ import Card from '../components/Card.jsx';
 import StatBlock from '../components/StatBlock.jsx';
 import Accordion from '../components/Accordion.jsx';
 import FlameMark from '../components/FlameMark.jsx';
+import ActivityFeed from '../components/ActivityFeed.jsx';
 import { RUG_STATS, HOW_STEPS, COMPARISON_ROWS, FAQ_ITEMS } from '../data/site.js';
 import { fmtBlock } from '../data/launches.js';
 import { useLaunches } from '../data/useLaunches.js';
+import { useActivity } from '../data/useActivity.js';
 
 function HeroBackground() {
   return (
@@ -36,7 +38,7 @@ function HeroBackground() {
         <circle cx="320" cy="320" r="230" stroke="rgba(255,179,71,0.10)" strokeWidth="1" strokeDasharray="1 10" />
       </svg>
       {/* vignette back to ink */}
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 40%, transparent 30%, #0A0A0C 85%)' }} />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 40%, transparent 30%, var(--color-ink) 85%)' }} />
     </div>
   );
 }
@@ -53,6 +55,7 @@ function SectionHeading({ kicker, title, lead }) {
 
 export default function Landing() {
   const { launches, currentBlock, pending, error } = useLaunches();
+  const activity = useActivity(launches, !pending);
   const stat = (v) => (pending || error ? '—' : v);
   const enforcementActions = launches.reduce((s, l) => s + l.log.length, 0);
   const activeGuardians = launches.filter((l) => l.guardian.status !== 'reviving').length;
@@ -109,6 +112,22 @@ export default function Landing() {
                 : `Live figures read from the CovenantRegistry on Ritual Chain testnet at block ${fmtBlock(currentBlock)}.`}
           </p>
         </div>
+      </section>
+
+      {/* ── Live activity ────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-6xl px-5 py-24">
+        <SectionHeading
+          kicker="On-chain now"
+          title="Every trade, in the open"
+          lead="Buys, sells, and new launches across every Vestal market — read straight from pool Swap events and the CovenantRegistry on Ritual Chain testnet."
+        />
+        <ActivityFeed
+          className="mt-12"
+          events={activity.events}
+          currentBlock={activity.currentBlock || currentBlock}
+          pending={activity.pending}
+          error={error ?? activity.error}
+        />
       </section>
 
       {/* ── The rug problem ──────────────────────────────────────────── */}

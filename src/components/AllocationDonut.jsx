@@ -4,7 +4,7 @@
  * the adjacent legend and the direct % labels, so the chart survives CVD
  * and grayscale. 2px surface gaps between segments.
  */
-const RAMP = ['#FFC46B', '#F2711F', '#C24632', '#8C3B1E'];
+const RAMP = ['var(--color-ramp-1)', 'var(--color-ramp-2)', 'var(--color-ramp-3)', 'var(--color-ramp-4)'];
 
 export default function AllocationDonut({ allocations, size = 200 }) {
   const total = allocations.reduce((s, a) => s + a.pct, 0) || 1;
@@ -77,10 +77,10 @@ export default function AllocationDonut({ allocations, size = 200 }) {
               </text>
             );
           })}
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="#9A948A" fontSize="10" letterSpacing="2">
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--color-fog)" fontSize="10" letterSpacing="2">
           TOTAL
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fill="#F2EDE3" fontSize="17" fontWeight="600" fontFamily="Fraunces, serif">
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--color-cream)" fontSize="17" fontWeight="600" fontFamily="Fraunces, serif">
           100%
         </text>
       </svg>

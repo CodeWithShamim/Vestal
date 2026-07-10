@@ -45,7 +45,7 @@ function AllocationSlider({ label, value, onChange, locked = false }) {
         value={value}
         disabled={locked}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
-        className="w-full accent-[#F2601F]"
+        className="w-full accent-ember"
         aria-label={`${label} percent of supply`}
       />
       <span className="w-12 shrink-0 text-right text-sm font-semibold text-cream">{value}%</span>
@@ -286,7 +286,7 @@ export default function Launch() {
                 step="5"
                 value={lpLockDays}
                 onChange={(e) => setLpLockDays(parseInt(e.target.value, 10))}
-                className="w-full accent-[#F2601F]"
+                className="w-full accent-ember"
               />
               <div className="mt-1 flex justify-between text-[11px] text-faint">
                 <span>30 days</span><span>1 year</span><span>2 years</span>
@@ -322,7 +322,7 @@ export default function Launch() {
               label={`Dev wallet sell-limit — ${devCapPct}% per 30 days`}
               hint="The guardian freezes any transfer that would push your wallet past this in a rolling 30-day window."
             >
-              <input type="range" min="0" max="10" value={devCapPct} onChange={(e) => setDevCapPct(parseInt(e.target.value, 10))} className="w-full accent-[#F2601F]" />
+              <input type="range" min="0" max="10" value={devCapPct} onChange={(e) => setDevCapPct(parseInt(e.target.value, 10))} className="w-full accent-ember" />
               <div className="mt-1 flex justify-between text-[11px] text-faint">
                 <span>0% (hard lock)</span><span>10%</span>
               </div>
@@ -348,7 +348,7 @@ export default function Launch() {
               </p>
             </div>
 
-            <div className="rounded-lg border border-ember/25 bg-ink/70 p-6" style={{ background: 'linear-gradient(170deg, rgba(242,96,31,0.06), rgba(10,10,12,0.6) 40%)' }}>
+            <div className="rounded-lg border border-ember/25 bg-ink/70 p-6" style={{ background: 'linear-gradient(170deg, rgba(242,96,31,0.06), color-mix(in oklab, var(--color-ink) 60%, transparent) 40%)' }}>
               <div className="flex items-center gap-2.5">
                 <FlameMark size={20} />
                 <span className="kicker !text-gold">Covenant summary</span>
@@ -392,7 +392,7 @@ export default function Launch() {
                 type="checkbox"
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[#F2601F]"
+                className="mt-0.5 h-4 w-4 accent-ember"
               />
               I understand these terms are permanent and will be enforced by an agent that does not answer to me.
             </label>

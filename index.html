@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash. Default: dark.
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('vestal-theme') === 'light' ? 'light' : 'dark';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
     <title>Vestal — Launch terms are physics, not promises.</title>
     <meta
       name="description"

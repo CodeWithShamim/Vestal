@@ -14,16 +14,16 @@ const SECTIONS = [
 ];
 
 function ArchitectureDiagram() {
-  const box = 'fill-[#1A1A21] stroke-[#26262F]';
-  const label = { fill: '#F2EDE3', fontSize: 12, fontWeight: 600 };
-  const sub = { fill: '#9A948A', fontSize: 9.5 };
-  const arrow = { stroke: '#6B665E', strokeWidth: 1.2, markerEnd: 'url(#arr)' };
+  const box = 'fill-raise stroke-line';
+  const label = { fill: 'var(--color-cream)', fontSize: 12, fontWeight: 600 };
+  const sub = { fill: 'var(--color-fog)', fontSize: 9.5 };
+  const arrow = { stroke: 'var(--color-faint)', strokeWidth: 1.2, markerEnd: 'url(#arr)' };
   return (
     <div className="overflow-x-auto">
       <svg viewBox="0 0 680 330" className="min-w-[640px]" role="img" aria-label="Vestal architecture: creator commits a covenant to Vestal contracts; a sovereign agent in a TEE enforces it using the Scheduler, DKMS, and heartbeat revival; all actions settle on Ritual Chain.">
         <defs>
           <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0 0 8 4 0 8z" fill="#6B665E" />
+            <path d="M0 0 8 4 0 8z" fill="var(--color-faint)" />
           </marker>
         </defs>
 
@@ -39,11 +39,11 @@ function ArchitectureDiagram() {
         <text x="290" y="111" textAnchor="middle" style={sub}>covenant registry</text>
 
         {/* Sovereign agent */}
-        <rect x="435" y="40" width="220" height="104" rx="10" fill="rgba(242,96,31,0.08)" stroke="#F2601F" strokeOpacity="0.45" />
-        <text x="545" y="70" textAnchor="middle" style={{ ...label, fill: '#FFB347' }}>Sovereign Guardian</text>
+        <rect x="435" y="40" width="220" height="104" rx="10" fill="rgba(242,96,31,0.08)" stroke="var(--color-ember)" strokeOpacity="0.45" />
+        <text x="545" y="70" textAnchor="middle" style={{ ...label, fill: 'var(--color-gold)' }}>Sovereign Guardian</text>
         <text x="545" y="88" textAnchor="middle" style={sub}>runs inside a TEE · invoked via</text>
         <text x="545" y="101" textAnchor="middle" style={sub}>agent precompiles · holds custody</text>
-        <text x="545" y="122" textAnchor="middle" style={{ ...sub, fill: '#F2EDE3' }}>keys via DKMS — never human-held</text>
+        <text x="545" y="122" textAnchor="middle" style={{ ...sub, fill: 'var(--color-cream)' }}>keys via DKMS — never human-held</text>
 
         {/* Primitives row */}
         <rect x="230" y="210" width="130" height="58" rx="10" className={box} />
@@ -62,8 +62,8 @@ function ArchitectureDiagram() {
         <text x="605" y="258" textAnchor="middle" style={sub}>from checkpoint</text>
 
         {/* Settlement strip */}
-        <rect x="20" y="292" width="650" height="26" rx="8" fill="rgba(242,96,31,0.05)" stroke="#26262F" />
-        <text x="345" y="309" textAnchor="middle" style={{ ...sub, fill: '#9A948A' }}>
+        <rect x="20" y="292" width="650" height="26" rx="8" fill="rgba(242,96,31,0.05)" stroke="var(--color-line)" />
+        <text x="345" y="309" textAnchor="middle" style={sub}>
           Ritual Chain — every guardian action settles on-chain with a TEE attestation
         </text>
 

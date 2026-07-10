@@ -40,6 +40,37 @@
   --animate-spin-slow: spin 40s linear infinite;
 }
 
+/* Dark is the default theme; index.html stamps data-theme before first paint. */
+:root {
+  color-scheme: dark;
+}
+
+/* Light theme: warm paper surfaces, same ember brand hue darkened for contrast. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-ink: #faf6ee;
+  --color-surface: #fffdf8;
+  --color-raise: #f1ebdf;
+  --color-line: #ddd4c3;
+  --color-linefaint: #e9e2d3;
+
+  --color-cream: #23201a;
+  --color-fog: #6e675b;
+  --color-faint: #9d9585;
+
+  --color-ember: #d14a0e;
+  --color-emberdim: #a63c0e;
+  --color-gold: #c07a12;
+
+  --color-status-good: #2e7d44;
+  --color-status-warn: #9a6c0c;
+  --color-status-info: #4a6b91;
+
+  /* Donut ramp is intentionally not overridden: the warm fills read on both
+     surfaces, and the dark on-segment labels stay legible. */
+}
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.55);
@@ -114,10 +145,16 @@ body {
   font-family: var(--font-body);
   font-feature-settings: "ss01" on, "cv11" on;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 ::selection {
   background: color-mix(in oklab, var(--color-ember) 70%, black);
+  color: var(--color-cream);
+}
+
+:root[data-theme='light'] ::selection {
+  background: color-mix(in oklab, var(--color-ember) 25%, white);
   color: var(--color-cream);
 }
 
