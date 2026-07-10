@@ -41,12 +41,15 @@ async function fetchSwaps(client, pool, currentBlock) {
     .flat()
     .map((l) => ({
       block: Number(l.blockNumber),
+      logIndex: Number(l.logIndex ?? 0),
+      txHash: l.transactionHash,
+      maker: l.args.trader,
       isBuy: l.args.isBuy,
       native: toNative(l.args.nativeAmount),
       tokens: toNative(l.args.tokenAmount),
       price: Number(l.args.priceX18) / 1e18,
     }))
-    .sort((a, b) => a.block - b.block);
+    .sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
 }
 
 /**
@@ -56,10 +59,14 @@ async function fetchSwaps(client, pool, currentBlock) {
  * @param {`0x${string}`} tokenAddress
  * @returns {Promise<null | {
  *   pool: `0x${string}`,
+ *   currentBlock: number,
  *   priceNative: number,
  *   reserveNative: number, reserveToken: number,
  *   guardedNative: number,
- *   trades: Array<{ block: number, isBuy: boolean, native: number, tokens: number, price: number }>,
+ *   trades: Array<{
+ *     block: number, logIndex: number, txHash: `0x${string}`, maker: `0x${string}`,
+ *     isBuy: boolean, native: number, tokens: number, price: number,
+ *   }>,
  *   change: { pct: number, label: string } | null,
  * }>}
  */
@@ -119,6 +126,7 @@ export async function fetchMarket(tokenAddress) {
 
   return {
     pool,
+    currentBlock: Number(currentBlock),
     priceNative,
     reserveNative: toNative(reserveNative),
     reserveToken: toNative(reserveToken),

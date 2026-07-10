@@ -6,7 +6,7 @@
 import { createServer } from 'vite';
 
 // Token routes are chain addresses now (no fixed ids), so only static routes smoke-test.
-const routes = ['/', '/explore', '/launch', '/docs'];
+const routes = ['/', '/explore', '/launch', '/docs', '/portfolio'];
 
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 

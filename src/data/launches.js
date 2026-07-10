@@ -99,3 +99,27 @@ export function shortAddr(a) {
 export function shortHash(h) {
   return `${h.slice(0, 10)}…${h.slice(-6)}`;
 }
+
+const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉';
+
+/**
+ * Native-coin price formatting across the pool's tiny magnitudes.
+ * Sub-0.01 values expand to 4 significant digits instead of exponent
+ * notation; runs of 4+ leading zeros compress DEX-style: 0.0₇5645
+ * means 7 zeros after the point, then the digits.
+ */
+export function fmtNative(v) {
+  if (!(v > 0)) return '0';
+  if (v >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (v >= 0.01) return v.toFixed(4);
+  let zeros = Math.max(0, -Math.floor(Math.log10(v)) - 1);
+  let digits = Math.round(v * 10 ** (zeros + 4));
+  if (digits >= 10_000) {
+    // Rounding carried into the next magnitude (0.0099999 → 0.01000).
+    digits = Math.round(digits / 10);
+    zeros -= 1;
+  }
+  if (zeros < 4) return v.toFixed(zeros + 4);
+  const sub = String(zeros).replace(/\d/g, (d) => SUBSCRIPT_DIGITS[+d]);
+  return `0.0${sub}${String(digits).padStart(4, '0')}`;
+}

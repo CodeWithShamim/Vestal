@@ -7,6 +7,7 @@ import { shortAddr } from '../data/launches.js';
 const links = [
   { to: '/explore', label: 'Explore' },
   { to: '/launch', label: 'Launch' },
+  { to: '/portfolio', label: 'Portfolio' },
   { to: '/docs', label: 'Docs' },
 ];
 

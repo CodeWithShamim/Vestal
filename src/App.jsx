@@ -7,6 +7,7 @@ import Explore from './pages/Explore.jsx';
 import TokenDetail from './pages/TokenDetail.jsx';
 import Launch from './pages/Launch.jsx';
 import Docs from './pages/Docs.jsx';
+import Portfolio from './pages/Portfolio.jsx';
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/token/:id" element={<TokenDetail />} />
           <Route path="/launch" element={<Launch />} />
           <Route path="/docs" element={<Docs />} />
+          <Route path="/portfolio" element={<Portfolio />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
