@@ -18,17 +18,33 @@ import {
 import { useLaunch } from '../data/useLaunches.js';
 import { useMarket } from '../data/useMarket.js';
 import { useWallet } from '../chain/wallet.js';
-import { estimateBuy, buyTokens, fetchTokenBalance } from '../chain/market.js';
+import { estimateBuy, estimateSell, buyTokens, sellTokens, openMarket, fetchTokenBalance } from '../chain/market.js';
 import { EXPLORER_URL, RITUAL_TESTNET } from '../config/ritual.js';
 
 const SYM = RITUAL_TESTNET.nativeCurrency.symbol;
 
-/** Native-coin price formatting across the pool's tiny magnitudes. */
+const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉';
+
+/**
+ * Native-coin price formatting across the pool's tiny magnitudes.
+ * Sub-0.01 values expand to 4 significant digits instead of exponent
+ * notation; runs of 4+ leading zeros compress DEX-style: 0.0₇5645
+ * means 7 zeros after the point, then the digits.
+ */
 const fmtNative = (v) => {
   if (!(v > 0)) return '0';
   if (v >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
   if (v >= 0.01) return v.toFixed(4);
-  return v.toPrecision(3);
+  let zeros = Math.max(0, -Math.floor(Math.log10(v)) - 1);
+  let digits = Math.round(v * 10 ** (zeros + 4));
+  if (digits >= 10_000) {
+    // Rounding carried into the next magnitude (0.0099999 → 0.01000).
+    digits = Math.round(digits / 10);
+    zeros -= 1;
+  }
+  if (zeros < 4) return v.toFixed(zeros + 4);
+  const sub = String(zeros).replace(/\d/g, (d) => SUBSCRIPT_DIGITS[+d]);
+  return `0.0${sub}${String(digits).padStart(4, '0')}`;
 };
 
 function MarketCard({ market, pending, error, symbol }) {
@@ -45,6 +61,7 @@ function MarketCard({ market, pending, error, symbol }) {
         <p className="mt-2 text-sm leading-relaxed text-fog">
           No liquidity pool has been seeded for {symbol}. Once the creator opens one through the
           VestalPoolFactory and locks its LP shares into the covenant, live pricing and trading appear here.
+          If this is your launch, connect the creator wallet — the open-market flow appears right here.
         </p>
       </Card>
     );
@@ -101,8 +118,34 @@ function MarketCard({ market, pending, error, symbol }) {
   );
 }
 
-function BuyWidget({ launch, market, onTraded }) {
+/** Connect / switch-network fallback shared by the trade and open-market cards. */
+function WalletGate({ wallet, children }) {
+  if (wallet.onRitual) return children;
+  if (wallet.connected) {
+    return (
+      <button type="button" className="btn-ember mt-4 w-full" onClick={wallet.switchToRitual}>
+        Switch wallet to {RITUAL_TESTNET.name}
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="btn-ember mt-4 w-full disabled:opacity-60"
+      disabled={wallet.status === 'connecting'}
+      onClick={wallet.connect}
+    >
+      {wallet.status === 'connecting' ? 'Connecting…' : 'Connect wallet'}
+    </button>
+  );
+}
+
+const inputClass =
+  'mt-1.5 w-full rounded-lg border border-line bg-ink px-4 py-3 text-lg font-medium text-cream outline-none transition-colors placeholder:text-faint focus:border-ember/60';
+
+function TradeWidget({ launch, market, onTraded }) {
   const wallet = useWallet();
+  const [side, setSide] = useState('buy');
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -123,19 +166,26 @@ function BuyWidget({ launch, market, onTraded }) {
     };
   }, [wallet.connected, wallet.address, launch.id, txHash]);
 
+  const isBuy = side === 'buy';
   const parsed = parseFloat(amount);
-  const estimate = estimateBuy(market, parsed);
+  const estimate = isBuy ? estimateBuy(market, parsed) : estimateSell(market, parsed);
 
-  async function onBuy() {
+  function switchSide(next) {
+    setSide(next);
+    setAmount('');
+    setError(null);
+    setTxHash(null);
+  }
+
+  async function onTrade() {
     setSubmitting(true);
     setError(null);
     setTxHash(null);
     try {
-      const hash = await buyTokens({
-        pool: market.pool,
-        nativeAmount: parsed,
-        minTokensOut: estimate * 0.99, // 1% slippage guard
-      });
+      const minOut = estimate * 0.99; // 1% slippage guard
+      const hash = isBuy
+        ? await buyTokens({ pool: market.pool, nativeAmount: parsed, minTokensOut: minOut })
+        : await sellTokens({ pool: market.pool, token: launch.id, tokenAmount: parsed, minNativeOut: minOut });
       setTxHash(hash);
       setAmount('');
       onTraded();
@@ -149,7 +199,20 @@ function BuyWidget({ launch, market, onTraded }) {
   return (
     <Card className="mt-6 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg font-medium text-cream">Buy {launch.symbol}</h2>
+        <div className="flex rounded-lg border border-line p-0.5">
+          {['buy', 'sell'].map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => switchSide(s)}
+              className={`rounded-md px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
+                side === s ? 'bg-ember/20 text-cream' : 'text-faint hover:text-fog'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
         {balance !== null && (
           <span className="text-xs text-faint">
             You hold <span className="mono text-fog">{balance.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span> {launch.symbol}
@@ -157,7 +220,18 @@ function BuyWidget({ launch, market, onTraded }) {
         )}
       </div>
       <label className="mt-5 block">
-        <span className="text-[11px] uppercase tracking-wider text-faint">You pay ({SYM})</span>
+        <span className="flex items-center justify-between text-[11px] uppercase tracking-wider text-faint">
+          <span>{isBuy ? `You pay (${SYM})` : `You sell (${launch.symbol})`}</span>
+          {!isBuy && balance > 0 && (
+            <button
+              type="button"
+              className="text-gold transition-colors hover:text-cream"
+              onClick={() => setAmount(String(Math.floor(balance * 1e6) / 1e6))}
+            >
+              Max
+            </button>
+          )}
+        </span>
         <input
           type="number"
           min="0"
@@ -165,38 +239,30 @@ function BuyWidget({ launch, market, onTraded }) {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.0"
-          className="mt-1.5 w-full rounded-lg border border-line bg-ink px-4 py-3 text-lg font-medium text-cream outline-none transition-colors placeholder:text-faint focus:border-ember/60"
+          className={inputClass}
         />
       </label>
       <div className="mt-3 flex items-center justify-between rounded-lg border border-linefaint bg-ink px-4 py-3">
         <span className="text-[11px] uppercase tracking-wider text-faint">You receive (est.)</span>
         <span className="font-semibold text-cream">
-          {estimate > 0 ? estimate.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'} {launch.symbol}
+          {estimate > 0 ? estimate.toLocaleString('en-US', { maximumFractionDigits: isBuy ? 2 : 6 }) : '—'}{' '}
+          {isBuy ? launch.symbol : SYM}
         </span>
       </div>
-      {wallet.onRitual ? (
+      <WalletGate wallet={wallet}>
         <button
           type="button"
           className="btn-ember mt-4 w-full disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!(parsed > 0) || submitting}
-          onClick={onBuy}
+          onClick={onTrade}
         >
-          {submitting ? 'Swapping — confirm in wallet…' : `Buy ${launch.symbol}`}
+          {submitting
+            ? 'Swapping — confirm in wallet…'
+            : isBuy
+              ? `Buy ${launch.symbol}`
+              : `Sell ${launch.symbol}`}
         </button>
-      ) : wallet.connected ? (
-        <button type="button" className="btn-ember mt-4 w-full" onClick={wallet.switchToRitual}>
-          Switch wallet to {RITUAL_TESTNET.name}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="btn-ember mt-4 w-full disabled:opacity-60"
-          disabled={wallet.status === 'connecting'}
-          onClick={wallet.connect}
-        >
-          {wallet.status === 'connecting' ? 'Connecting…' : 'Connect wallet'}
-        </button>
-      )}
+      </WalletGate>
       {(error || wallet.error) && (
         <p className="mt-3 text-xs leading-relaxed text-status-warn">{error || wallet.error}</p>
       )}
@@ -214,8 +280,107 @@ function BuyWidget({ launch, market, onTraded }) {
         </p>
       )}
       <p className="mt-3 text-xs leading-relaxed text-faint">
-        Swaps execute against the LaunchPool with a 0.3% fee and 1% slippage guard. Testnet only — no real
-        value is at stake.
+        Swaps execute against the LaunchPool with a 0.3% fee and 1% slippage guard.
+        {!isBuy && ' Selling needs a one-time approval first, and the covenant’s sell cap applies to tracked wallets.'}{' '}
+        Testnet only — no real value is at stake.
+      </p>
+    </Card>
+  );
+}
+
+const OPEN_MARKET_STEPS = {
+  pool: 'Step 1 of 3 — creating the pool…',
+  seed: 'Step 2 of 3 — seeding liquidity (approve, then deposit)…',
+  lock: 'Step 3 of 3 — locking LP shares into the covenant…',
+};
+
+/** Shown to the launch creator while the token has no seeded pool. */
+function OpenMarketCard({ launch, onOpened }) {
+  const wallet = useWallet();
+  const [tokenAmount, setTokenAmount] = useState('');
+  const [nativeAmount, setNativeAmount] = useState('');
+  const [step, setStep] = useState(null);
+  const [error, setError] = useState(null);
+
+  const tokens = parseFloat(tokenAmount);
+  const native = parseFloat(nativeAmount);
+  const ready = tokens > 0 && native > 0;
+
+  async function onOpen() {
+    setError(null);
+    try {
+      await openMarket({
+        token: launch.id,
+        covenant: launch.covenant,
+        tokenAmount: tokens,
+        nativeAmount: native,
+        onStep: setStep,
+      });
+      onOpened();
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || 'Opening the market failed.');
+    } finally {
+      setStep(null);
+    }
+  }
+
+  return (
+    <Card className="mt-6 p-6">
+      <h2 className="font-display text-lg font-medium text-cream">Open the market for {launch.symbol}</h2>
+      <p className="mt-2 text-sm leading-relaxed text-fog">
+        You created this launch, so you can open its market: create the pool, seed the first liquidity,
+        and lock the LP shares into the covenant — all from here. The ratio you deposit sets the opening
+        price.
+      </p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wider text-faint">{launch.symbol} to deposit</span>
+          <input
+            type="number"
+            min="0"
+            inputMode="decimal"
+            value={tokenAmount}
+            onChange={(e) => setTokenAmount(e.target.value)}
+            placeholder="0.0"
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wider text-faint">{SYM} to deposit</span>
+          <input
+            type="number"
+            min="0"
+            inputMode="decimal"
+            value={nativeAmount}
+            onChange={(e) => setNativeAmount(e.target.value)}
+            placeholder="0.0"
+            className={inputClass}
+          />
+        </label>
+      </div>
+      <div className="mt-3 flex items-center justify-between rounded-lg border border-linefaint bg-ink px-4 py-3">
+        <span className="text-[11px] uppercase tracking-wider text-faint">Opening price</span>
+        <span className="font-semibold text-cream">
+          {ready ? `${fmtNative(native / tokens)} ${SYM} / ${launch.symbol}` : '—'}
+        </span>
+      </div>
+      <WalletGate wallet={wallet}>
+        <button
+          type="button"
+          className="btn-ember mt-4 w-full disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!ready || step !== null}
+          onClick={onOpen}
+        >
+          {step ? OPEN_MARKET_STEPS[step] : 'Open market & lock LP'}
+        </button>
+      </WalletGate>
+      {(error || wallet.error) && (
+        <p className="mt-3 text-xs leading-relaxed text-status-warn">{error || wallet.error}</p>
+      )}
+      <p className="mt-3 text-xs leading-relaxed text-faint">
+        Runs as separate transactions (create pool → approve → deposit → lock); if one fails you can retry
+        and completed steps are skipped. LP shares stay in covenant custody until block{' '}
+        {fmtBlock(launch.terms.lpLockUntilBlock)}.
       </p>
     </Card>
   );
@@ -244,12 +409,14 @@ export default function TokenDetail() {
   const { id } = useParams();
   const { launch, currentBlock, pending } = useLaunch(id);
   const { market, pending: marketPending, error: marketError, refresh: refreshMarket } = useMarket(launch?.id);
+  const wallet = useWallet();
   if (!launch) {
     // A chain launch id may not resolve until the registry read lands.
     if (pending) return null;
     return <Navigate to="/explore" replace />;
   }
 
+  const isCreator = wallet.connected && wallet.address?.toLowerCase() === launch.creator.toLowerCase();
   const { guardian, terms } = launch;
   const vested = vestedPct(launch);
   const score = trustScore(launch);
@@ -278,9 +445,13 @@ export default function TokenDetail() {
             </div>
           </div>
 
-          <MarketCard market={market} pending={marketPending} error={marketError} symbol={launch.symbol} />
+          {!market && !marketPending && !marketError && isCreator ? (
+            <OpenMarketCard launch={launch} onOpened={refreshMarket} />
+          ) : (
+            <MarketCard market={market} pending={marketPending} error={marketError} symbol={launch.symbol} />
+          )}
 
-          {market && <BuyWidget launch={launch} market={market} onTraded={refreshMarket} />}
+          {market && <TradeWidget launch={launch} market={market} onTraded={refreshMarket} />}
 
           <Card className="mt-6 p-6">
             <div className="grid grid-cols-3 gap-4 text-sm">

@@ -7,7 +7,7 @@
  */
 import { parseEther } from 'viem';
 import { BLOCK_TIME_SECONDS, VESTAL_CONTRACTS } from '../config/ritual.js';
-import { POOL_FACTORY_ABI, POOL_ABI, TOKEN_ABI } from './abi.js';
+import { POOL_FACTORY_ABI, POOL_ABI, TOKEN_ABI, COVENANT_ABI } from './abi.js';
 import { publicClient } from './launches.js';
 import { walletClient } from './wallet.js';
 
@@ -131,11 +131,21 @@ export async function fetchMarket(tokenAddress) {
 /** Client-side buy estimate from the fetched reserves (0.3% fee). */
 export function estimateBuy(market, nativeIn) {
   if (!market || !(nativeIn > 0)) return 0;
-  const inWei = parseEther(String(nativeIn));
+  const inWei = parseEther(nativeIn.toFixed(18));
   const rN = parseEther(market.reserveNative.toFixed(18));
   const rT = parseEther(market.reserveToken.toFixed(18));
   const inFee = inWei * (BPS - FEE_BPS);
   return toNative((rT * inFee) / (rN * BPS + inFee));
+}
+
+/** Client-side sell estimate from the fetched reserves (0.3% fee). */
+export function estimateSell(market, tokenIn) {
+  if (!market || !(tokenIn > 0)) return 0;
+  const inWei = parseEther(tokenIn.toFixed(18));
+  const rN = parseEther(market.reserveNative.toFixed(18));
+  const rT = parseEther(market.reserveToken.toFixed(18));
+  const inFee = inWei * (BPS - FEE_BPS);
+  return toNative((rN * inFee) / (rT * BPS + inFee));
 }
 
 export async function fetchTokenBalance(tokenAddress, wallet) {
@@ -148,25 +158,124 @@ export async function fetchTokenBalance(tokenAddress, wallet) {
   return toNative(bal);
 }
 
+function requireWallet() {
+  const wallet = walletClient();
+  if (!wallet) throw new Error('Connect a wallet on Ritual Chain first.');
+  return wallet;
+}
+
+/** Simulate → write → confirm receipt; returns the tx hash. */
+async function writeAndConfirm(client, wallet, params) {
+  const { request } = await client.simulateContract({ ...params, account: wallet.account.address });
+  const hash = await wallet.writeContract(request);
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('Transaction reverted on-chain.');
+  return hash;
+}
+
+/** Approve `spender` for `amount` of `token` unless the allowance already covers it. */
+async function ensureAllowance(client, wallet, { token, spender, amount }) {
+  const current = await client.readContract({
+    address: token,
+    abi: TOKEN_ABI,
+    functionName: 'allowance',
+    args: [wallet.account.address, spender],
+  });
+  if (current >= amount) return;
+  await writeAndConfirm(client, wallet, {
+    address: token,
+    abi: TOKEN_ABI,
+    functionName: 'approve',
+    args: [spender, amount],
+  });
+}
+
 /**
  * Buy launch tokens with native coin. Simulates first so pool reverts
  * surface before the wallet prompt; returns the tx hash after the
  * receipt confirms.
  */
 export async function buyTokens({ pool, nativeAmount, minTokensOut }) {
-  const wallet = walletClient();
-  if (!wallet) throw new Error('Connect a wallet on Ritual Chain first.');
+  const wallet = requireWallet();
   const client = publicClient();
-  const { request } = await client.simulateContract({
+  return writeAndConfirm(client, wallet, {
     address: pool,
     abi: POOL_ABI,
     functionName: 'buy',
     args: [parseEther(minTokensOut.toFixed(18))],
-    value: parseEther(String(nativeAmount)),
-    account: wallet.account.address,
+    value: parseEther(nativeAmount.toFixed(18)),
   });
-  const hash = await wallet.writeContract(request);
-  const receipt = await client.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('Transaction reverted on-chain.');
-  return hash;
+}
+
+/**
+ * Sell launch tokens for native coin: approve the pool if needed, then
+ * sell. The token's covenant hook runs on the transfer in, so a sell-cap
+ * or freeze revert surfaces here as a readable simulation error.
+ */
+export async function sellTokens({ pool, token, tokenAmount, minNativeOut }) {
+  const wallet = requireWallet();
+  const client = publicClient();
+  const tokenIn = parseEther(tokenAmount.toFixed(18));
+  await ensureAllowance(client, wallet, { token, spender: pool, amount: tokenIn });
+  return writeAndConfirm(client, wallet, {
+    address: pool,
+    abi: POOL_ABI,
+    functionName: 'sell',
+    args: [tokenIn, parseEther(minNativeOut.toFixed(18))],
+  });
+}
+
+/**
+ * Creator flow that takes a launch from "no market yet" to a live,
+ * covenant-guarded market: create the pool if none exists, approve and
+ * seed the initial liquidity (the deposit ratio sets the opening price),
+ * then lock every LP share into the launch's GuardianCovenant.
+ *
+ * Each stage is its own transaction; `onStep` receives
+ * 'pool' | 'seed' | 'lock' as the flow advances so the UI can narrate.
+ * Safe to re-run after a mid-flow failure — completed stages are
+ * detected and skipped.
+ *
+ * @returns {Promise<`0x${string}`>} the pool address
+ */
+export async function openMarket({ token, covenant, tokenAmount, nativeAmount, onStep = () => {} }) {
+  const wallet = requireWallet();
+  const client = publicClient();
+  const factory = { address: VESTAL_CONTRACTS.POOL_FACTORY, abi: POOL_FACTORY_ABI };
+
+  onStep('pool');
+  let pool = await client.readContract({ ...factory, functionName: 'poolOf', args: [token] });
+  if (pool.toLowerCase() === ZERO) {
+    await writeAndConfirm(client, wallet, { ...factory, functionName: 'createPool', args: [token] });
+    pool = await client.readContract({ ...factory, functionName: 'poolOf', args: [token] });
+  }
+
+  onStep('seed');
+  const tokenIn = parseEther(tokenAmount.toFixed(18));
+  await ensureAllowance(client, wallet, { token, spender: pool, amount: tokenIn });
+  await writeAndConfirm(client, wallet, {
+    address: pool,
+    abi: POOL_ABI,
+    functionName: 'addLiquidity',
+    args: [tokenIn],
+    value: parseEther(nativeAmount.toFixed(18)),
+  });
+
+  onStep('lock');
+  const shares = await client.readContract({
+    address: pool,
+    abi: TOKEN_ABI,
+    functionName: 'balanceOf',
+    args: [wallet.account.address],
+  });
+  if (shares > 0n) {
+    await ensureAllowance(client, wallet, { token: pool, spender: covenant, amount: shares });
+    await writeAndConfirm(client, wallet, {
+      address: covenant,
+      abi: COVENANT_ABI,
+      functionName: 'lockLp',
+      args: [pool, shares],
+    });
+  }
+  return pool;
 }

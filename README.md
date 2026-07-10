@@ -50,8 +50,8 @@ guardian, and market state directly from deployed contracts. There are no mocks 
 
 ```
                                     FRONTEND (React + viem)
-   Landing · Explore · Token detail (Guardian Panel, price chart, buy widget) · Launch wizard · Docs
-        │  reads: registry, covenant, events, pool          │  writes: createLaunch, buy
+   Landing · Explore · Token detail (Guardian Panel, price chart, trade widget) · Launch wizard · Docs
+        │  reads: registry, covenant, events, pool          │  writes: createLaunch, buy, sell, open market
         ▼                                                   ▼
 ┌─────────────────────────────── RITUAL CHAIN TESTNET (id 1979) ───────────────────────────────┐
 │                                                                                              │
@@ -214,7 +214,8 @@ src/config/ritual.js         chain constants: RPC, chain id, contracts, precompi
         ├── src/chain/launches.js   registry enumeration → Launch objects (terms, vesting,
         │                           guardian summary, chunked EnforcementAction event history)
         ├── src/chain/market.js     poolOf → reserves, price, guarded liquidity, Swap history,
-        │                           client-side buy quote, simulated-then-sent buy()
+        │                           client-side buy/sell quotes, simulated-then-sent buy()/sell(),
+        │                           and the creator's openMarket flow (createPool → seed → lockLp)
         └── src/chain/factory.js    the one deploy write: createLaunch
                 │
                 ├── src/data/useLaunches.js   module-level store: fetch once, share everywhere;
@@ -280,7 +281,8 @@ Frontend ↔ contract mapping:
 | Guardian status badge | `covenant.guardianStatus()` (same derivation) |
 | UI percents | basis points on-chain (bps / 100 = %) |
 | Market card / price chart | `VestalPoolFactory.poolOf()` → `LaunchPool` reserves + `Swap` events |
-| Buy widget | `LaunchPool.buy()` (0.3% fee, constant product) |
+| Trade widget (buy / sell) | `LaunchPool.buy()` / `LaunchPool.sell()` (0.3% fee, constant product; sells run the covenant's sell-cap/freeze checks) |
+| Open-market flow (creator, shown when no pool) | `VestalPoolFactory.createPool()` → `LaunchPool.addLiquidity()` → `GuardianCovenant.lockLp()` |
 | "Guarded liquidity" figure | covenant's `LaunchPool` share balance × its slice of both reserves |
 
 ---
@@ -296,7 +298,7 @@ Frontend ↔ contract mapping:
 |---|---|---|
 | `/` | [Landing.jsx](src/pages/Landing.jsx) | Hero, how-it-works, comparison table, FAQ. |
 | `/explore` | [Explore.jsx](src/pages/Explore.jsx) | Every registered launch, read live from the registry. |
-| `/token/:id` | [TokenDetail.jsx](src/pages/TokenDetail.jsx) | The showpiece: Guardian Panel (status, heartbeat, revivals, enforcement log with attestations), covenant terms, vesting timeline, live market (price chart from Swap events, reserves, buy widget). `:id` is the token address. |
+| `/token/:id` | [TokenDetail.jsx](src/pages/TokenDetail.jsx) | The showpiece: Guardian Panel (status, heartbeat, revivals, enforcement log with attestations), covenant terms, vesting timeline, live market (price chart from Swap events, reserves, buy/sell widget). When the token has no pool yet, the connected creator sees the open-market flow instead. `:id` is the token address. |
 | `/launch` | [Launch.jsx](src/pages/Launch.jsx) | The 4-step wizard ending in a real `createLaunch` transaction. |
 | `/docs` | [Docs.jsx](src/pages/Docs.jsx) | In-app documentation: architecture, lifecycle, contracts, FAQ, roadmap. |
 

@@ -190,8 +190,12 @@ export default function Launch() {
             </div>
           </dl>
         </Card>
+        <p className="mx-auto mt-6 max-w-md text-sm leading-relaxed text-fog">
+          One step left: open the market. On your token page you can create the liquidity pool, seed it,
+          and lock the LP shares into the covenant — until then the page shows “no market yet”.
+        </p>
         <div className="mt-8 flex justify-center gap-3">
-          <Link to={`/token/${deployed.token.toLowerCase()}`} className="btn-ember">View your launch</Link>
+          <Link to={`/token/${deployed.token.toLowerCase()}`} className="btn-ember">Open the market</Link>
           <Link to="/explore" className="btn-ghost">Explore launches</Link>
         </div>
       </div>

@@ -78,6 +78,7 @@ async function mapLaunch(client, entry, currentBlock) {
 
   return {
     id: entry.token.toLowerCase(),
+    covenant: entry.covenant,
     name,
     symbol,
     tagline: 'Live on-chain launch — covenant state read from Ritual contracts.',
