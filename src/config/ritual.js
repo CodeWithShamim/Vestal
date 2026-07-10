@@ -16,14 +16,14 @@
  */
 const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
 
-/** JSON-RPC endpoint for Ritual Chain testnet. PLACEHOLDER — set the published URL. */
-export const RPC_URL = env.VITE_RPC_URL || 'https://rpc.testnet.ritual.invalid';
+/** JSON-RPC endpoint for Ritual Chain testnet. */
+export const RPC_URL = env.VITE_RPC_URL || 'https://rpc.ritualfoundation.org';
 
-/** Ritual Chain testnet chain id. PLACEHOLDER — set the published id. */
-export const CHAIN_ID = Number(env.VITE_CHAIN_ID ?? 0);
+/** Ritual Chain testnet chain id. */
+export const CHAIN_ID = Number(env.VITE_CHAIN_ID ?? 1979);
 
-/** Block explorer base URL. PLACEHOLDER. */
-export const EXPLORER_URL = 'https://explorer.testnet.ritual.invalid';
+/** Block explorer base URL. */
+export const EXPLORER_URL = 'https://explorer.ritualfoundation.org';
 
 /** Approximate block time in seconds, used for countdown display only. */
 export const BLOCK_TIME_SECONDS = 2;
