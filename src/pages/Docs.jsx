@@ -1,9 +1,13 @@
 import Card from '../components/Card.jsx';
-import { PRECOMPILES, RITUAL_TESTNET } from '../config/ritual.js';
+import { PRECOMPILES, RITUAL_TESTNET, VESTAL_CONTRACTS, EXPLORER_URL } from '../config/ritual.js';
 
 const SECTIONS = [
   { id: 'overview', label: 'Overview' },
   { id: 'architecture', label: 'Architecture' },
+  { id: 'launch-flow', label: 'Launch, step by step' },
+  { id: 'enforcement', label: 'What is enforced' },
+  { id: 'contracts', label: 'Contracts' },
+  { id: 'market', label: 'Market' },
   { id: 'lifecycle', label: 'Guardian lifecycle' },
   { id: 'dev-faq', label: 'Developer FAQ' },
   { id: 'roadmap', label: 'Roadmap' },
@@ -75,6 +79,60 @@ function ArchitectureDiagram() {
   );
 }
 
+/** The seven atomic actions inside VestalLaunchFactory.createLaunch. */
+const LAUNCH_STEPS = [
+  { title: 'Mint', desc: 'The fixed supply is minted once, into the factory. No further minting is possible — the token has no mint function after construction.' },
+  { title: 'Fund the creator', desc: 'The creator receives their unvested share before the covenant starts watching, so the sell-cap window bases on real holdings.' },
+  { title: 'Deploy the covenant', desc: 'A fresh GuardianCovenant is deployed with the committed terms and tranches; the creator’s wallet is under audit from block one.' },
+  { title: 'Custody the vesting', desc: 'The entire vesting allocation transfers into covenant custody. Only the guardian can release it, and never early.' },
+  { title: 'Bind the transfer hook', desc: 'The covenant is bound into the token’s transfer path — one-shot, factory-only, irreversible. Every future transfer is checked.' },
+  { title: 'Provision the guardian', desc: 'The sovereign agent is provisioned, committed to the covenant’s termsHash — a keccak256 of the exact terms anyone can re-derive — and bound as guardian.' },
+  { title: 'Register', desc: 'The launch is appended to the CovenantRegistry. After this, the factory has no remaining authority — and never had a key that could override the covenant.' },
+];
+
+const ENFORCED = [
+  {
+    what: 'Vesting',
+    how: 'Tranches sit in covenant custody; only the guardian can release them, never before the committed block. If a tranche goes unclaimed ~7 days past due, anyone may execute it — to the committed recipient only. Funds can be neither rushed nor stranded, even if Vestal and Ritual both vanish.',
+  },
+  {
+    what: 'Dev-wallet sell cap',
+    how: 'The creator’s wallet (plus any insider wallet the guardian tracks) can sell at most the committed share of its holdings per rolling window. Exceeding it reverts at the token level — the trade simply cannot execute.',
+  },
+  {
+    what: 'Freeze',
+    how: 'The guardian can freeze a wallet that violated committed terms; all its outgoing transfers revert until unfrozen. Selling into the pool is a transfer, so frozen wallets cannot sell.',
+  },
+  {
+    what: 'LP lock',
+    how: 'The creator deposits LP shares into covenant custody via lockLp(); withdrawal reverts before the committed unlock block — not one block sooner. “LP locked” is literal custody, not a promise.',
+  },
+  {
+    what: 'Terms immutability',
+    how: 'Terms are hashed into termsHash at launch. No setter exists for terms, the covenant binding, or the guardian binding. There are no admin keys anywhere in the system.',
+  },
+  {
+    what: 'Attested log',
+    how: 'Every guardian action — wake, audit, release, flag, freeze, checkpoint, revival — emits an EnforcementAction event carrying a TEE attestation hash. The Enforcement Log on every token page is a straight read of this stream.',
+  },
+];
+
+const CONTRACTS = [
+  { name: 'VestalToken', role: 'Fixed-supply ERC20 whose every transfer is checked by its covenant. No admin, no upgrade path, no way to detach the covenant.' },
+  { name: 'GuardianCovenant', role: 'One per launch. Custodies vesting and LP, enforces freeze and sell caps in the transfer hook, and writes the attested enforcement log.' },
+  { name: 'VestalLaunchFactory', role: 'Turns the wizard’s covenant summary into an enforced reality in one transaction (the seven steps above).' },
+  { name: 'CovenantRegistry', role: 'Append-only, factory-only index of every launch. Explore enumerates it; token pages resolve through it.' },
+  { name: 'LaunchPool', role: 'Native-paired constant-product AMM with 0.3% fee and ERC20 LP shares. No owner, no fee switch, no pause.' },
+  { name: 'VestalPoolFactory', role: 'Permissionless one-pool-per-token registry — token → market resolution in a single read.' },
+  { name: 'IRitual + providers', role: 'The precompile boundary: assumed Ritual ABIs isolated in two files, with a mock provider so the full flow runs where the precompiles haven’t shipped.' },
+];
+
+const DEPLOYED = [
+  { name: 'CovenantRegistry', addr: VESTAL_CONTRACTS.COVENANT_REGISTRY },
+  { name: 'VestalLaunchFactory', addr: VESTAL_CONTRACTS.LAUNCH_FACTORY },
+  { name: 'VestalPoolFactory', addr: VESTAL_CONTRACTS.POOL_FACTORY },
+];
+
 const LIFECYCLE = [
   { state: 'Committed', desc: 'The creator signs the covenant; terms are registered immutably on-chain.' },
   { state: 'Deployed', desc: 'The guardian agent is instantiated in a TEE via the sovereign-agent precompile.' },
@@ -90,7 +148,7 @@ const LIFECYCLE = [
 const DEV_FAQ = [
   {
     q: 'How do I read covenant state programmatically?',
-    a: 'Covenants are registered on-chain; read them through the covenant registry (address in src/config/ritual.js once published). Every mock shape in src/data/launches.js mirrors the intended read model, so swapping mocks for viem calls is mechanical.',
+    a: `Enumerate launches with CovenantRegistry.allLaunches() (${VESTAL_CONTRACTS.COVENANT_REGISTRY.slice(0, 10)}…), then read each covenant directly: terms(), vesting(), guardianSummary(), and the EnforcementAction event stream. src/chain/launches.js in the repo is a complete viem reference implementation, and src/data/launches.js documents the mapped shapes.`,
   },
   {
     q: 'What exactly is attested?',
@@ -106,13 +164,17 @@ const DEV_FAQ = [
   },
   {
     q: 'What chain config do I point a wallet at?',
-    a: `Ritual Chain testnet — see RITUAL_TESTNET in src/config/ritual.js (rpcUrl, chainId, explorer). Values there are placeholders until the public endpoints are pinned; nothing else in the app hardcodes chain details.`,
+    a: `${RITUAL_TESTNET.name}: chain id ${RITUAL_TESTNET.chainId}, RPC ${RITUAL_TESTNET.rpcUrl}, native currency ${RITUAL_TESTNET.nativeCurrency.symbol}. The app can add and switch to the network for you when you connect — nothing outside src/config/ritual.js hardcodes chain details.`,
+  },
+  {
+    q: 'Is the guardian a real TEE agent today?',
+    a: 'Not yet — the agent precompile slots have no code on the current testnet, so launches use a mock provider (guardian = deployer EOA). The covenant’s structural guarantees — vesting custody, sell caps, freezes, LP lock, the permissionless failsafe — hold regardless; TEE-backed liveness and attestations arrive when the precompiles ship, with no changes above the provider boundary.',
   },
 ];
 
 const ROADMAP = [
-  { phase: 'Now — Testnet', items: ['Full launch flow on Ritual Chain testnet', 'Guardian enforcement: LP lock, vesting, dev-wallet caps', 'Attestation links on every enforcement action'] },
-  { phase: 'Next', items: ['Open-source guardian template + reproducible builds', 'Wallet integration (viem/wagmi) replacing all mocks', 'Public attestation verifier page'] },
+  { phase: 'Now — Testnet', items: ['Full launch flow live on Ritual Chain testnet: wizard → createLaunch → registry', 'Covenant enforcement on-chain: LP lock, vesting + failsafe, sell caps, freezes', 'Native-paired AMM with covenant-locked LP shares and on-chain price history'] },
+  { phase: 'Next', items: ['Swap the mock provider for TEE guardians when the agent precompiles ship', 'Open-source guardian template + reproducible builds', 'Public attestation verifier page'] },
   { phase: 'Later', items: ['Third-party guardian builds with on-page build hashes', 'Covenant templates for DAOs and long-horizon treasuries', 'Mainnet, following independent audits'] },
 ];
 
@@ -164,8 +226,10 @@ export default function Docs() {
               consensus-level heartbeat monitoring with automatic revival from checkpoints.
             </p>
             <p>
-              Vestal currently runs on {RITUAL_TESTNET.name}. All figures in the app are illustrative
-              testnet data and labeled as such.
+              Vestal runs live on {RITUAL_TESTNET.name} (chain id {RITUAL_TESTNET.chainId}). Every
+              launch, guardian status, enforcement log entry, and market figure in the app is read
+              directly from deployed contracts — there are no mocks in the data path. Launching and
+              trading are real transactions signed by your connected wallet.
             </p>
           </DocSection>
 
@@ -190,6 +254,109 @@ export default function Docs() {
             <p className="rounded-lg border border-linefaint bg-surface px-4 py-3 mono text-xs text-fog">
               Precompiles: SOVEREIGN_AGENT …080C · PERSISTENT_AGENT …0820 · HTTP …0801 · LLM …0802 ·
               SCHEDULER (address pending) — full constants in src/config/ritual.js
+            </p>
+          </DocSection>
+
+          <DocSection id="launch-flow" title="Launch, step by step">
+            <p>
+              The Launch Wizard collects four screens of intent — token basics, tokenomics, guardian
+              terms, review &amp; sign — and compresses them into a single{' '}
+              <span className="mono text-xs text-cream">createLaunch</span> transaction. Days become
+              blocks, percents become basis points, and the team allocation splits into equal vesting
+              tranches. Inside that one transaction, the factory performs seven actions atomically:
+            </p>
+            <ol className="mt-2 flex flex-col">
+              {LAUNCH_STEPS.map((s, i) => (
+                <li key={s.title} className="relative flex gap-4 pb-5 last:pb-0">
+                  {i < LAUNCH_STEPS.length - 1 && (
+                    <span aria-hidden="true" className="absolute left-[13px] top-7 h-full w-px bg-linefaint" />
+                  )}
+                  <span className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-ember/40 bg-ember/5 text-[11px] font-semibold text-gold">
+                    {i + 1}
+                  </span>
+                  <div className="pt-1">
+                    <span className="text-sm font-semibold text-cream">{s.title}</span>
+                    <p className="mt-0.5 text-sm text-fog">{s.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p>
+              The frontend simulates the call before prompting the wallet, so a covenant that would
+              revert — LP lock in the past, allocations that don’t sum, a 100%-vested supply — fails
+              with a readable error before anything is signed. On success, the app decodes the{' '}
+              <span className="mono text-xs text-cream">LaunchCreated</span> event from the receipt
+              and routes straight to the new token page, already live.
+            </p>
+          </DocSection>
+
+          <DocSection id="enforcement" title="What is actually enforced">
+            <p>
+              “Unruggable” is a checklist, not a vibe. Each guarantee below is a revert in the token’s
+              transfer path or a custody rule in the covenant — enforcement is what the code{' '}
+              <em>cannot</em> do, not what a team promises not to.
+            </p>
+            <dl className="flex flex-col gap-4">
+              {ENFORCED.map((e) => (
+                <div key={e.what}>
+                  <dt className="text-sm font-semibold text-cream">{e.what}</dt>
+                  <dd className="mt-1 text-sm leading-relaxed text-fog">{e.how}</dd>
+                </div>
+              ))}
+            </dl>
+          </DocSection>
+
+          <DocSection id="contracts" title="Contracts">
+            <p>
+              Seven contracts, no admin keys. Full source and 28 Foundry tests live in the repo’s{' '}
+              <span className="mono text-xs text-cream">contracts/</span> directory.
+            </p>
+            <div className="flex flex-col gap-3.5">
+              {CONTRACTS.map((c) => (
+                <div key={c.name}>
+                  <span className="mono text-xs font-semibold text-cream">{c.name}</span>
+                  <p className="mt-0.5 text-sm text-fog">{c.role}</p>
+                </div>
+              ))}
+            </div>
+            <Card className="p-5">
+              <div className="kicker">Deployed on {RITUAL_TESTNET.name}</div>
+              <dl className="mt-3 flex flex-col gap-2">
+                {DEPLOYED.map((d) => (
+                  <div key={d.name} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between">
+                    <dt className="text-sm text-fog">{d.name}</dt>
+                    <dd>
+                      <a
+                        href={`${EXPLORER_URL}/address/${d.addr}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mono break-all text-xs text-gold hover:underline"
+                      >
+                        {d.addr}
+                      </a>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          </DocSection>
+
+          <DocSection id="market" title="Market">
+            <p>
+              Every launch can open a market: a minimal constant-product AMM (
+              <span className="mono text-xs text-cream">LaunchPool</span>) pairing the token against
+              the native coin, with a 0.3% fee that accrues to LP shares. The pool has no owner, no
+              fee switch, and no pause — nothing in it is Vestal-privileged.
+            </p>
+            <p>
+              Two properties tie the market into the covenant system. First,{' '}
+              <strong className="text-cream">LP shares are themselves an ERC20</strong>: the creator
+              seeds liquidity, then locks the shares into the launch’s covenant — “LP locked” on a
+              token page is literal custody by the same contract that vests the team allocation.
+              Second, <strong className="text-cream">selling into the pool is a token transfer</strong>,
+              so the covenant’s sell cap and freeze checks run on every sell at the token level, with
+              no extra wiring. The price chart on each token page is rebuilt from the pool’s on-chain{' '}
+              <span className="mono text-xs text-cream">Swap</span> events.
             </p>
           </DocSection>
 
