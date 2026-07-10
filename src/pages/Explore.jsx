@@ -7,7 +7,6 @@ import TrustMeter from '../components/TrustMeter.jsx';
 import {
   vestedPct,
   trustScore,
-  fmtUsd,
   blocksToApproxTime,
 } from '../data/launches.js';
 import { useLaunches } from '../data/useLaunches.js';
@@ -21,7 +20,6 @@ const STATUS_FILTERS = [
 
 const SORTS = [
   { id: 'newest', label: 'Newest' },
-  { id: 'guarded', label: 'Most guarded value' },
   { id: 'trust', label: 'Trust score' },
 ];
 
@@ -52,8 +50,8 @@ function LaunchCard({ launch, currentBlock }) {
             <div className="mt-0.5 font-semibold text-cream">{vested}%</div>
           </div>
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-faint">Value guarded</div>
-            <div className="mt-0.5 font-semibold text-cream">{fmtUsd(launch.market.guardedUsd)}</div>
+            <div className="text-[11px] uppercase tracking-wider text-faint">Dev sell cap</div>
+            <div className="mt-0.5 font-semibold text-cream">{launch.terms.devWalletCapPct}% / 30d</div>
           </div>
           <div className="col-span-2">
             <div className="text-[11px] uppercase tracking-wider text-faint">LP unlocks in</div>
@@ -75,17 +73,16 @@ function LaunchCard({ launch, currentBlock }) {
 export default function Explore() {
   const [status, setStatus] = useState('all');
   const [sort, setSort] = useState('newest');
-  const { launches, currentBlock, source } = useLaunches();
+  const { launches, currentBlock, pending, error } = useLaunches();
 
   const shown = useMemo(() => {
     let list = launches.filter((l) => status === 'all' || l.guardian.status === status);
     const bySort = {
       newest: (a, b) => b.createdAtBlock - a.createdAtBlock,
-      guarded: (a, b) => b.market.guardedUsd - a.market.guardedUsd,
       trust: (a, b) => trustScore(b) - trustScore(a),
     };
     return [...list].sort(bySort[sort]);
-  }, [status, sort]);
+  }, [launches, status, sort]);
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-14">
@@ -131,8 +128,23 @@ export default function Explore() {
         </label>
       </div>
 
-      {shown.length === 0 ? (
-        <Card className="mt-8 p-12 text-center text-fog">No launches in this state right now.</Card>
+      {pending ? (
+        <Card className="mt-8 p-12 text-center text-fog">Reading the CovenantRegistry on Ritual Chain testnet…</Card>
+      ) : error ? (
+        <Card className="mt-8 p-12 text-center text-status-warn">{error}</Card>
+      ) : shown.length === 0 ? (
+        <Card className="mt-8 p-12 text-center text-fog">
+          {launches.length === 0 ? (
+            <>
+              No launches registered yet.{' '}
+              <Link to="/launch" className="text-ember underline decoration-ember/30 underline-offset-4 hover:text-gold">
+                Be the first to commit a covenant.
+              </Link>
+            </>
+          ) : (
+            'No launches in this state right now.'
+          )}
+        </Card>
       ) : (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((l) => (
@@ -142,11 +154,9 @@ export default function Explore() {
       )}
 
       <p className="mt-10 text-xs text-faint">
-        {source === 'chain'
-          ? 'Includes live on-chain launches read from the CovenantRegistry; remaining entries are illustrative testnet data.'
-          : 'Illustrative testnet data.'}{' '}
-        Trust scores are derived from each guardian's attested enforcement history — audits passed and
-        releases executed raise them; violations caught lower them.
+        Launches are read live from the CovenantRegistry on Ritual Chain testnet. Trust scores are derived
+        from each guardian's attested enforcement history — audits passed and releases executed raise them;
+        violations caught lower them.
       </p>
     </div>
   );

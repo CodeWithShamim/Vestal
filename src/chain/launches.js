@@ -1,11 +1,7 @@
 /**
  * Real chain reads. Fetches every registered launch from the
- * CovenantRegistry and maps it into the exact Launch shape documented
- * in src/data/launches.js, so UI components cannot tell a chain launch
- * from a mock one.
- *
- * Market data (price, holders, guarded USD) has no on-chain source yet
- * and is zeroed; everything covenant-related — terms, vesting,
+ * CovenantRegistry and maps it into the Launch shape documented in
+ * src/data/launches.js. Everything covenant-related — terms, vesting,
  * guardian status, the enforcement log — is read from contracts.
  */
 import { createPublicClient, http } from 'viem';
@@ -86,7 +82,7 @@ async function mapLaunch(client, entry, currentBlock) {
     symbol,
     tagline: 'Live on-chain launch — covenant state read from Ritual contracts.',
     description:
-      'This launch is read directly from the CovenantRegistry. Terms, vesting, guardian status, and the enforcement log below are contract state, not mock data. Market figures await an on-chain price source.',
+      'This launch is read directly from the CovenantRegistry. Terms, vesting, guardian status, and the enforcement log below are contract state on Ritual Chain testnet.',
     creator: entry.creator,
     createdAtBlock: num(entry.createdAtBlock),
     guardian: {
@@ -109,7 +105,6 @@ async function mapLaunch(client, entry, currentBlock) {
         released: t.released,
       })),
     },
-    market: { priceUsd: 0, change24h: 0, guardedUsd: 0, holders: 0 },
     log: logs
       .map((l) => ({
         block: num(l.args.atBlock ?? l.blockNumber),

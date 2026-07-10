@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 
 /**
- * Single-series price chart placeholder: 2px ember line, soft area fill,
- * crosshair + tooltip on hover. One series, so no legend — the caption
- * names it and flags the data as illustrative.
+ * Single-series price chart: 2px ember line, soft area fill, crosshair +
+ * tooltip on hover. One series, so no legend — the caption names it.
+ * Callers must pass at least two points; formatValue supplies the unit.
  */
 export default function Sparkline({ series, height = 180, formatValue = (v) => v.toFixed(4) }) {
   const [hover, setHover] = useState(null);
@@ -37,7 +37,7 @@ export default function Sparkline({ series, height = 180, formatValue = (v) => v
         viewBox={`0 0 ${w} ${h}`}
         className="block w-full cursor-crosshair"
         role="img"
-        aria-label={`Illustrative price history, latest ${formatValue(series[last])}`}
+        aria-label={`Price history, latest ${formatValue(series[last])}`}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
       >
@@ -70,7 +70,7 @@ export default function Sparkline({ series, height = 180, formatValue = (v) => v
             transform: `translateX(${hover > series.length * 0.7 ? '-110%' : '10%'})`,
           }}
         >
-          ${formatValue(series[hover])}
+          {formatValue(series[hover])}
         </div>
       )}
     </div>

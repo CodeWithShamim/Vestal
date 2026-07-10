@@ -1,17 +1,16 @@
 /**
- * Single data entry point for pages: mock launches render instantly,
- * and when a registry address is configured (VITE_COVENANT_REGISTRY,
- * see src/config/ritual.js) real chain launches are fetched once and
- * shown ahead of the mocks. Chain launch ids are token addresses, so
- * /token/:id routes work unchanged.
+ * Single data entry point for pages: launches are read live from the
+ * CovenantRegistry (src/chain/launches.js) — there is no mock fallback.
+ * Launch ids are token addresses, so /token/:id routes are addresses.
+ * refreshLaunches() refetches after a deploy so a new launch appears
+ * without a reload.
  */
 import { useEffect, useSyncExternalStore } from 'react';
-import { LAUNCHES, CURRENT_BLOCK } from './launches.js';
 import { CHAIN_READS_ENABLED } from '../config/ritual.js';
 
 const state = {
-  /** @type {{ launches: import('./launches.js').Launch[], currentBlock: number, source: 'mock'|'chain', pending: boolean }} */
-  snapshot: { launches: LAUNCHES, currentBlock: CURRENT_BLOCK, source: 'mock', pending: CHAIN_READS_ENABLED },
+  /** @type {{ launches: import('./launches.js').Launch[], currentBlock: number, pending: boolean, error: string|null }} */
+  snapshot: { launches: [], currentBlock: 0, pending: CHAIN_READS_ENABLED, error: null },
   listeners: new Set(),
   fetched: false,
 };
@@ -21,24 +20,43 @@ function subscribe(listener) {
   return () => state.listeners.delete(listener);
 }
 
-async function fetchOnce() {
-  if (state.fetched || !CHAIN_READS_ENABLED) return;
-  state.fetched = true;
+function notify() {
+  state.listeners.forEach((l) => l());
+}
+
+async function fetchLaunches() {
+  if (!CHAIN_READS_ENABLED) {
+    state.snapshot = { ...state.snapshot, pending: false, error: 'No CovenantRegistry address configured (see src/config/ritual.js).' };
+    notify();
+    return;
+  }
   try {
     const { fetchChainLaunches } = await import('../chain/launches.js');
     const { currentBlock, launches } = await fetchChainLaunches();
-    state.snapshot = {
-      launches: launches.length ? [...launches, ...LAUNCHES] : LAUNCHES,
-      currentBlock: launches.length ? currentBlock : CURRENT_BLOCK,
-      source: launches.length ? 'chain' : 'mock',
-      pending: false,
-    };
+    state.snapshot = { launches, currentBlock, pending: false, error: null };
   } catch (err) {
-    // Chain unreachable — mocks stay up; log for the developer.
-    console.warn('[vestal] chain read failed, showing illustrative data:', err);
-    state.snapshot = { ...state.snapshot, pending: false };
+    console.warn('[vestal] chain read failed:', err);
+    state.snapshot = {
+      ...state.snapshot,
+      pending: false,
+      error: 'Could not reach Ritual Chain — check your connection and reload.',
+    };
   }
-  state.listeners.forEach((l) => l());
+  notify();
+}
+
+function fetchOnce() {
+  if (state.fetched) return;
+  state.fetched = true;
+  fetchLaunches();
+}
+
+/** Refetch the registry (e.g. right after a launch deploys). */
+export function refreshLaunches() {
+  state.fetched = true;
+  state.snapshot = { ...state.snapshot, pending: true };
+  notify();
+  return fetchLaunches();
 }
 
 /** All launches plus the block height countdowns should compute against. */
@@ -49,9 +67,9 @@ export function useLaunches() {
   return useSyncExternalStore(subscribe, () => state.snapshot, () => state.snapshot);
 }
 
-/** One launch by id (mock slug or token address). */
+/** One launch by token address. */
 export function useLaunch(id) {
-  const { launches, currentBlock, source, pending } = useLaunches();
-  const launch = launches.find((l) => l.id === id) ?? null;
-  return { launch, currentBlock, source, pending };
+  const { launches, currentBlock, pending, error } = useLaunches();
+  const launch = launches.find((l) => l.id === id?.toLowerCase()) ?? null;
+  return { launch, currentBlock, pending, error };
 }

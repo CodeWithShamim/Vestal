@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import Card from '../components/Card.jsx';
 import Badge from '../components/Badge.jsx';
@@ -8,61 +8,156 @@ import Timeline from '../components/Timeline.jsx';
 import Sparkline from '../components/Sparkline.jsx';
 import HeartbeatMonitor from '../components/HeartbeatMonitor.jsx';
 import {
-  priceSeries,
   vestedPct,
   trustScore,
   fmtBlock,
-  fmtUsd,
   shortAddr,
-  mockHex,
   shortHash,
   blocksToApproxTime,
 } from '../data/launches.js';
 import { useLaunch } from '../data/useLaunches.js';
+import { useMarket } from '../data/useMarket.js';
+import { useWallet } from '../chain/wallet.js';
+import { estimateBuy, buyTokens, fetchTokenBalance } from '../chain/market.js';
+import { EXPLORER_URL, RITUAL_TESTNET } from '../config/ritual.js';
 
-function TermRow({ title, detail, attestationKey }) {
+const SYM = RITUAL_TESTNET.nativeCurrency.symbol;
+
+/** Native-coin price formatting across the pool's tiny magnitudes. */
+const fmtNative = (v) => {
+  if (!(v > 0)) return '0';
+  if (v >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (v >= 0.01) return v.toFixed(4);
+  return v.toPrecision(3);
+};
+
+function MarketCard({ market, pending, error, symbol }) {
+  if (pending) {
+    return <Card className="mt-6 p-6 text-sm text-faint">Reading market from Ritual Chain…</Card>;
+  }
+  if (error) {
+    return <Card className="mt-6 p-6 text-sm text-status-warn">{error}</Card>;
+  }
+  if (!market) {
+    return (
+      <Card className="mt-6 p-6">
+        <h2 className="font-display text-lg font-medium text-cream">No market yet</h2>
+        <p className="mt-2 text-sm leading-relaxed text-fog">
+          No liquidity pool has been seeded for {symbol}. Once the creator opens one through the
+          VestalPoolFactory and locks its LP shares into the covenant, live pricing and trading appear here.
+        </p>
+      </Card>
+    );
+  }
+
+  const series = market.trades.map((t) => t.price);
   return (
-    <li className="flex gap-3 py-3.5 first:pt-0 last:pb-0">
-      <span
-        aria-hidden="true"
-        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-status-good/40 text-status-good"
-      >
-        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-          <path d="M2 6.5 4.8 9 10 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </span>
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-cream">{title}</div>
-        <div className="mt-0.5 text-xs leading-relaxed text-fog">{detail}</div>
-        <a
-          href="#attestation"
-          onClick={(e) => e.preventDefault()}
-          title="Attestation viewer connects to the explorer at chain integration"
-          className="mono mt-1 inline-block text-ember/90 underline decoration-ember/30 underline-offset-4 transition-colors hover:text-gold"
-        >
-          view attestation {shortHash(mockHex(attestationKey))}
-        </a>
+    <Card className="mt-6 p-6">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="font-display text-3xl font-medium text-cream">
+          {fmtNative(market.priceNative)} <span className="text-base text-faint">{SYM}</span>
+        </span>
+        {market.change && (
+          <span className={`text-sm font-semibold ${market.change.pct >= 0 ? 'text-status-good' : 'text-status-warn'}`}>
+            {market.change.pct >= 0 ? '▲' : '▼'} {Math.abs(market.change.pct).toFixed(1)}% · {market.change.label}
+          </span>
+        )}
       </div>
-    </li>
+      {series.length >= 2 ? (
+        <div className="mt-4">
+          <Sparkline series={series} formatValue={(v) => `${fmtNative(v)} ${SYM}`} />
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-faint">Not enough trades yet to chart — history builds with each swap.</p>
+      )}
+      <p className="mt-2 text-xs text-faint">
+        Price and history read from the pool's on-chain Swap events ({market.trades.length} trade
+        {market.trades.length === 1 ? '' : 's'} in the recent block window).
+      </p>
+      <div className="mt-5 grid grid-cols-3 gap-4 border-t border-linefaint pt-5 text-sm">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-faint">Pool liquidity</div>
+          <div className="mt-0.5 font-semibold text-cream">{fmtNative(market.reserveNative * 2)} {SYM}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-faint">LP in covenant custody</div>
+          <div className="mt-0.5 font-semibold text-cream">{fmtNative(market.guardedNative)} {SYM}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-faint">Pool contract</div>
+          <div className="mono mt-0.5 text-cream">
+            <a
+              href={`${EXPLORER_URL}/address/${market.pool}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-ember/30 underline-offset-4 transition-colors hover:text-gold"
+            >
+              {shortAddr(market.pool)}
+            </a>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
-function BuyWidget({ launch }) {
+function BuyWidget({ launch, market, onTraded }) {
+  const wallet = useWallet();
   const [amount, setAmount] = useState('');
-  const [connected, setConnected] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [txHash, setTxHash] = useState(null);
+  const [balance, setBalance] = useState(null);
+
+  useEffect(() => {
+    let stale = false;
+    if (wallet.connected) {
+      fetchTokenBalance(launch.id, wallet.address)
+        .then((b) => !stale && setBalance(b))
+        .catch(() => {});
+    } else {
+      setBalance(null);
+    }
+    return () => {
+      stale = true;
+    };
+  }, [wallet.connected, wallet.address, launch.id, txHash]);
+
   const parsed = parseFloat(amount);
-  const estimate = parsed > 0 && launch.market.priceUsd > 0 ? parsed / launch.market.priceUsd : 0;
+  const estimate = estimateBuy(market, parsed);
+
+  async function onBuy() {
+    setSubmitting(true);
+    setError(null);
+    setTxHash(null);
+    try {
+      const hash = await buyTokens({
+        pool: market.pool,
+        nativeAmount: parsed,
+        minTokensOut: estimate * 0.99, // 1% slippage guard
+      });
+      setTxHash(hash);
+      setAmount('');
+      onTraded();
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || 'Swap failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <Card className="p-6">
+    <Card className="mt-6 p-6">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-medium text-cream">Buy {launch.symbol}</h2>
-        <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-faint">
-          Testnet mock
-        </span>
+        {balance !== null && (
+          <span className="text-xs text-faint">
+            You hold <span className="mono text-fog">{balance.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span> {launch.symbol}
+          </span>
+        )}
       </div>
       <label className="mt-5 block">
-        <span className="text-[11px] uppercase tracking-wider text-faint">You pay (tRITUAL)</span>
+        <span className="text-[11px] uppercase tracking-wider text-faint">You pay ({SYM})</span>
         <input
           type="number"
           min="0"
@@ -79,37 +174,85 @@ function BuyWidget({ launch }) {
           {estimate > 0 ? estimate.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'} {launch.symbol}
         </span>
       </div>
-      {connected ? (
-        <button type="button" className="btn-ember mt-4 w-full" disabled title="Swap execution arrives with chain integration">
-          Review swap — chain integration pending
+      {wallet.onRitual ? (
+        <button
+          type="button"
+          className="btn-ember mt-4 w-full disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!(parsed > 0) || submitting}
+          onClick={onBuy}
+        >
+          {submitting ? 'Swapping — confirm in wallet…' : `Buy ${launch.symbol}`}
+        </button>
+      ) : wallet.connected ? (
+        <button type="button" className="btn-ember mt-4 w-full" onClick={wallet.switchToRitual}>
+          Switch wallet to {RITUAL_TESTNET.name}
         </button>
       ) : (
-        <button type="button" className="btn-ember mt-4 w-full" onClick={() => setConnected(true)}>
-          Connect wallet
+        <button
+          type="button"
+          className="btn-ember mt-4 w-full disabled:opacity-60"
+          disabled={wallet.status === 'connecting'}
+          onClick={wallet.connect}
+        >
+          {wallet.status === 'connecting' ? 'Connecting…' : 'Connect wallet'}
         </button>
       )}
+      {(error || wallet.error) && (
+        <p className="mt-3 text-xs leading-relaxed text-status-warn">{error || wallet.error}</p>
+      )}
+      {txHash && (
+        <p className="mt-3 text-xs leading-relaxed text-status-good">
+          Swap confirmed —{' '}
+          <a
+            href={`${EXPLORER_URL}/tx/${txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mono underline decoration-status-good/40 underline-offset-4"
+          >
+            {shortHash(txHash)}
+          </a>
+        </p>
+      )}
       <p className="mt-3 text-xs leading-relaxed text-faint">
-        {connected
-          ? 'Mock session — real connection wires through viem/wagmi against the chain constants in src/config/ritual.js.'
-          : 'Testnet only. No real value is at stake anywhere on Vestal today.'}
+        Swaps execute against the LaunchPool with a 0.3% fee and 1% slippage guard. Testnet only — no real
+        value is at stake.
       </p>
     </Card>
+  );
+}
+
+function TermRow({ title, detail }) {
+  return (
+    <li className="flex gap-3 py-3.5 first:pt-0 last:pb-0">
+      <span
+        aria-hidden="true"
+        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-status-good/40 text-status-good"
+      >
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6.5 4.8 9 10 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-cream">{title}</div>
+        <div className="mt-0.5 text-xs leading-relaxed text-fog">{detail}</div>
+      </div>
+    </li>
   );
 }
 
 export default function TokenDetail() {
   const { id } = useParams();
   const { launch, currentBlock, pending } = useLaunch(id);
+  const { market, pending: marketPending, error: marketError, refresh: refreshMarket } = useMarket(launch?.id);
   if (!launch) {
     // A chain launch id may not resolve until the registry read lands.
     if (pending) return null;
     return <Navigate to="/explore" replace />;
   }
 
-  const { guardian, terms, market } = launch;
+  const { guardian, terms } = launch;
   const vested = vestedPct(launch);
   const score = trustScore(launch);
-  const series = priceSeries(launch);
   const lockBlocksLeft = terms.lpLockUntilBlock - currentBlock;
   const nextTranche = terms.vesting.find((t) => !t.released);
 
@@ -135,46 +278,44 @@ export default function TokenDetail() {
             </div>
           </div>
 
+          <MarketCard market={market} pending={marketPending} error={marketError} symbol={launch.symbol} />
+
+          {market && <BuyWidget launch={launch} market={market} onTraded={refreshMarket} />}
+
           <Card className="mt-6 p-6">
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <span className="font-display text-3xl font-medium text-cream">
-                ${market.priceUsd < 0.01 ? market.priceUsd.toFixed(4) : market.priceUsd.toFixed(2)}
-              </span>
-              <span className={`text-sm font-semibold ${market.change24h >= 0 ? 'text-status-good' : 'text-status-warn'}`}>
-                {market.change24h >= 0 ? '▲' : '▼'} {Math.abs(market.change24h).toFixed(1)}% · 24h
-              </span>
-            </div>
-            <div className="mt-4">
-              <Sparkline
-                series={series}
-                formatValue={(v) => (v < 0.01 ? v.toFixed(5) : v.toFixed(3))}
-              />
-            </div>
-            <p className="mt-2 text-xs text-faint">Illustrative price data — live chart lands with chain integration.</p>
-            <div className="mt-5 grid grid-cols-3 gap-4 border-t border-linefaint pt-5 text-sm">
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-faint">Value guarded</div>
-                <div className="mt-0.5 font-semibold text-cream">{fmtUsd(market.guardedUsd)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-faint">Holders</div>
-                <div className="mt-0.5 font-semibold text-cream">{market.holders.toLocaleString('en-US')}</div>
-              </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-faint">Supply vested</div>
                 <div className="mt-0.5 font-semibold text-cream">{vested}%</div>
               </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-faint">Dev sell cap</div>
+                <div className="mt-0.5 font-semibold text-cream">{terms.devWalletCapPct}% / 30d</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-faint">LP unlocks in</div>
+                <div className="mt-0.5 font-semibold text-cream">{blocksToApproxTime(lockBlocksLeft)}</div>
+              </div>
             </div>
           </Card>
-
-          <div className="mt-6">
-            <BuyWidget launch={launch} />
-          </div>
 
           <Card className="mt-6 p-6">
             <h2 className="font-display text-lg font-medium text-cream">About {launch.name}</h2>
             <p className="mt-3 text-sm leading-relaxed text-fog">{launch.description}</p>
             <dl className="mt-5 grid gap-3 border-t border-linefaint pt-5 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-[11px] uppercase tracking-wider text-faint">Token contract</dt>
+                <dd className="mono mt-0.5 text-fog">
+                  <a
+                    href={`${EXPLORER_URL}/address/${launch.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-ember/30 underline-offset-4 transition-colors hover:text-gold"
+                  >
+                    {shortAddr(launch.id)}
+                  </a>
+                </dd>
+              </div>
               <div>
                 <dt className="text-[11px] uppercase tracking-wider text-faint">Creator</dt>
                 <dd className="mono mt-0.5 text-fog">{shortAddr(launch.creator)}</dd>
@@ -241,7 +382,6 @@ export default function TokenDetail() {
                   <TermRow
                     title={`LP locked until block ${fmtBlock(terms.lpLockUntilBlock)}`}
                     detail={`${terms.lpPctLocked}% of liquidity under guardian custody — unlocks in ${blocksToApproxTime(lockBlocksLeft)}.`}
-                    attestationKey={`${launch.id}:term:lp`}
                   />
                   <TermRow
                     title={`Vesting: ${terms.vesting.length} tranches, ${terms.vesting.reduce((s, t) => s + t.pct, 0)}% of supply`}
@@ -250,17 +390,14 @@ export default function TokenDetail() {
                         ? `Next: ${nextTranche.label} (${nextTranche.pct}%) at block ${fmtBlock(nextTranche.atBlock)} — in ${blocksToApproxTime(nextTranche.atBlock - currentBlock)}.`
                         : 'All tranches released on schedule.'
                     }
-                    attestationKey={`${launch.id}:term:vesting`}
                   />
                   <TermRow
                     title={`Dev wallet capped at ${terms.devWalletCapPct}% per 30 days`}
                     detail="Sales beyond the cap are frozen by the guardian automatically — no warnings, no exceptions."
-                    attestationKey={`${launch.id}:term:cap`}
                   />
                   <TermRow
                     title={`Insider audit every ${fmtBlock(terms.monitorEveryBlocks)} blocks`}
                     detail={`The guardian wakes itself via the native Scheduler roughly every ${blocksToApproxTime(terms.monitorEveryBlocks)} — no keeper bots involved.`}
-                    attestationKey={`${launch.id}:term:monitor`}
                   />
                 </ul>
               </div>

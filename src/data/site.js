@@ -1,30 +1,10 @@
 /**
- * MOCK DATA MODULE — site-level content and network-wide figures.
- * All numbers here are illustrative testnet figures; the UI labels them so.
- * Replace GUARDIAN_NETWORK with an aggregation over real chain reads.
+ * Site-level editorial content (copy, FAQ, comparisons). Network-wide
+ * figures are aggregated from live chain reads in the pages themselves
+ * (see Landing.jsx over useLaunches) — no chain numbers live here.
  */
 
-import { CURRENT_BLOCK } from './launches.js';
-
-/**
- * @typedef {Object} NetworkStats
- * @property {number} guardedUsd        Total value under guardian custody
- * @property {number} activeGuardians
- * @property {number} heartbeats24h
- * @property {number} enforcementActions Total attested actions to date
- * @property {number} asOfBlock
- */
-
-/** @type {NetworkStats} */
-export const GUARDIAN_NETWORK = {
-  guardedUsd: 3_937_000,
-  activeGuardians: 27,
-  heartbeats24h: 41_820,
-  enforcementActions: 1_286,
-  asOfBlock: CURRENT_BLOCK,
-};
-
-/** "The Rug Problem" stat cards. Figures are illustrative and labeled as such in the UI. */
+/** "The Rug Problem" stat cards. Figures are illustrative industry copy and labeled as such in the UI. */
 export const RUG_STATS = [
   {
     value: '$2.8B+',
@@ -134,6 +114,6 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Is this live on mainnet?',
-    a: 'Not yet. Vestal runs on Ritual Chain testnet, and every figure on this site is illustrative testnet data, labeled as such. Launch mechanics, guardian behavior, and attestations work end-to-end on testnet today; mainnet follows audits.',
+    a: 'Not yet. Vestal runs on Ritual Chain testnet — every launch on this site is read live from the CovenantRegistry contract there. Launch mechanics, guardian behavior, and attestations work end-to-end on testnet today; mainnet follows audits.',
   },
 ];

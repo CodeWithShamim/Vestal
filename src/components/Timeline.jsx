@@ -1,4 +1,4 @@
-import { fmtBlock, shortHash, blocksToApproxTime, CURRENT_BLOCK } from '../data/launches.js';
+import { fmtBlock, shortHash, blocksToApproxTime } from '../data/launches.js';
 
 const TYPE_META = {
   wake: { label: 'Scheduled wake', tone: 'text-fog border-line' },
@@ -29,7 +29,10 @@ function EventIcon({ type }) {
 }
 
 /** Enforcement log timeline — every entry carries its TEE attestation hash. */
-export default function Timeline({ events, currentBlock = CURRENT_BLOCK }) {
+export default function Timeline({ events, currentBlock }) {
+  if (events.length === 0) {
+    return <p className="text-sm text-faint">No enforcement actions recorded in the recent block window.</p>;
+  }
   return (
     <ol className="relative">
       {events.map((e, i) => {
@@ -54,17 +57,15 @@ export default function Timeline({ events, currentBlock = CURRENT_BLOCK }) {
                 </span>
               </div>
               <p className="mt-1 text-sm leading-relaxed text-fog">{e.detail}</p>
-              <a
-                href="#attestation"
-                onClick={(ev) => ev.preventDefault()}
-                title="Attestation viewer connects to the explorer at chain integration"
-                className="mono mt-1 inline-flex items-center gap-1.5 text-ember/90 underline decoration-ember/30 underline-offset-4 transition-colors hover:text-gold"
+              <span
+                title={e.attestation}
+                className="mono mt-1 inline-flex items-center gap-1.5 text-ember/90"
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                   <path d="M6 1.2 10.5 3v3c0 2.4-1.8 4.2-4.5 4.8C3.3 10.2 1.5 8.4 1.5 6V3L6 1.2z" stroke="currentColor" strokeWidth="1.1" />
                 </svg>
                 TEE attestation {shortHash(e.attestation)}
-              </a>
+              </span>
             </div>
           </li>
         );

@@ -3,8 +3,9 @@ import Card from '../components/Card.jsx';
 import StatBlock from '../components/StatBlock.jsx';
 import Accordion from '../components/Accordion.jsx';
 import FlameMark from '../components/FlameMark.jsx';
-import { GUARDIAN_NETWORK, RUG_STATS, HOW_STEPS, COMPARISON_ROWS, FAQ_ITEMS } from '../data/site.js';
-import { fmtBlock, fmtUsd } from '../data/launches.js';
+import { RUG_STATS, HOW_STEPS, COMPARISON_ROWS, FAQ_ITEMS } from '../data/site.js';
+import { fmtBlock } from '../data/launches.js';
+import { useLaunches } from '../data/useLaunches.js';
 
 function HeroBackground() {
   return (
@@ -51,6 +52,11 @@ function SectionHeading({ kicker, title, lead }) {
 }
 
 export default function Landing() {
+  const { launches, currentBlock, pending, error } = useLaunches();
+  const stat = (v) => (pending || error ? '—' : v);
+  const enforcementActions = launches.reduce((s, l) => s + l.log.length, 0);
+  const activeGuardians = launches.filter((l) => l.guardian.status !== 'reviving').length;
+
   return (
     <div>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
@@ -90,14 +96,17 @@ export default function Landing() {
       <section className="border-y border-linefaint bg-surface/50">
         <div className="mx-auto max-w-6xl px-5 py-10">
           <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
-            <StatBlock label="Value under guardianship" value={fmtUsd(GUARDIAN_NETWORK.guardedUsd)} accent />
-            <StatBlock label="Active guardians" value={GUARDIAN_NETWORK.activeGuardians} />
-            <StatBlock label="Heartbeats · last 24h" value={GUARDIAN_NETWORK.heartbeats24h.toLocaleString('en-US')} />
-            <StatBlock label="Enforcement actions" value={GUARDIAN_NETWORK.enforcementActions.toLocaleString('en-US')} />
+            <StatBlock label="Launches under guardianship" value={stat(launches.length)} accent />
+            <StatBlock label="Active guardians" value={stat(activeGuardians)} />
+            <StatBlock label="Attested enforcement actions" value={stat(enforcementActions.toLocaleString('en-US'))} />
+            <StatBlock label="Current block" value={stat(fmtBlock(currentBlock))} />
           </div>
           <p className="mt-6 text-xs text-faint">
-            Illustrative testnet figures as of block {fmtBlock(GUARDIAN_NETWORK.asOfBlock)} — live chain reads replace
-            these at integration.
+            {error
+              ? error
+              : pending
+                ? 'Reading the CovenantRegistry on Ritual Chain testnet…'
+                : `Live figures read from the CovenantRegistry on Ritual Chain testnet at block ${fmtBlock(currentBlock)}.`}
           </p>
         </div>
       </section>

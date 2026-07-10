@@ -5,9 +5,11 @@ import StepIndicator from '../components/StepIndicator.jsx';
 import AllocationDonut from '../components/AllocationDonut.jsx';
 import TokenAvatar from '../components/TokenAvatar.jsx';
 import FlameMark from '../components/FlameMark.jsx';
-import { CURRENT_BLOCK, fmtBlock, mockHex, shortAddr, shortHash } from '../data/launches.js';
-import { BLOCK_TIME_SECONDS, RITUAL_TESTNET } from '../config/ritual.js';
+import { fmtBlock, shortAddr, shortHash } from '../data/launches.js';
+import { BLOCK_TIME_SECONDS, EXPLORER_URL, RITUAL_TESTNET } from '../config/ritual.js';
 import { useWallet } from '../chain/wallet.js';
+import { deployLaunch } from '../chain/factory.js';
+import { useLaunches, refreshLaunches } from '../data/useLaunches.js';
 
 const STEPS = ['Token basics', 'Tokenomics', 'Guardian terms', 'Review & deploy'];
 
@@ -72,8 +74,12 @@ export default function Launch() {
   // Step 4 — review
   const [signature, setSignature] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
-  const [deployed, setDeployed] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [deployError, setDeployError] = useState(null);
+  /** @type {[null | { token: string, covenant: string, guardian: string, termsHash: string, txHash: string }, Function]} */
+  const [deployed, setDeployed] = useState(null);
   const wallet = useWallet();
+  const { currentBlock } = useLaunches();
 
   const allocTotal = alloc.publicLp + alloc.team + alloc.treasury + alloc.community;
   const allocations = [
@@ -87,7 +93,7 @@ export default function Launch() {
   const displayName = name.trim() || 'Your token';
 
   const tranchePreview = useMemo(() => {
-    const startBlock = CURRENT_BLOCK + daysToBlocks(vest.cliffDays);
+    const startBlock = currentBlock + daysToBlocks(vest.cliffDays);
     const per = alloc.team / vest.tranches;
     return Array.from({ length: vest.tranches }, (_, i) => ({
       label: `Tranche ${i + 1} of ${vest.tranches}`,
@@ -95,43 +101,88 @@ export default function Launch() {
       atBlock: startBlock + daysToBlocks(vest.intervalDays) * i,
       days: vest.cliffDays + vest.intervalDays * i,
     }));
-  }, [vest, alloc.team]);
+  }, [vest, alloc.team, currentBlock]);
 
   const canNext = [
     name.trim().length >= 2 && sym.length >= 2 && sym.length <= 6,
-    allocTotal === 100 && parseFloat(supply) > 0,
+    allocTotal === 100 && parseFloat(supply) > 0 && alloc.team >= 1,
     true,
     signature === sym && acknowledged,
   ][step];
 
   const stepErrors = [
     'Name (2+ chars) and a 2–6 character symbol are required.',
-    `Allocations must sum to exactly 100% — currently ${allocTotal}%.`,
+    alloc.team < 1
+      ? 'Team (vested) must be at least 1% — the guardian needs an allocation to vest.'
+      : `Allocations must sum to exactly 100% — currently ${allocTotal}%.`,
     '',
     `Type ${sym || 'your symbol'} to sign, and acknowledge immutability.`,
   ];
 
+  async function onDeploy() {
+    setDeploying(true);
+    setDeployError(null);
+    try {
+      const result = await deployLaunch({
+        name: name.trim(),
+        symbol: sym,
+        supply,
+        publicLpPct: alloc.publicLp,
+        teamPct: alloc.team,
+        lpLockDays,
+        vest,
+        devCapPct,
+        monitorBlocks,
+      });
+      refreshLaunches();
+      setDeployed(result);
+    } catch (err) {
+      setDeployError(err?.shortMessage || err?.message || 'Deployment failed.');
+    } finally {
+      setDeploying(false);
+    }
+  }
+
   if (deployed) {
-    const guardianAddr = mockHex(`wizard:${sym}:guardian`, 20);
-    const covenantHash = mockHex(`wizard:${sym}:covenant`);
     return (
       <div className="mx-auto max-w-2xl px-5 py-20 text-center">
         <FlameMark size={48} ring className="mx-auto text-gold" />
         <h1 className="mt-6 font-display text-4xl font-medium tracking-tight text-cream">Covenant sealed.</h1>
         <p className="mx-auto mt-4 max-w-md leading-relaxed text-fog">
-          This was a dry run — on testnet deployment, a sovereign guardian would now generate its keys via
-          DKMS, take custody of {displayName}'s LP and vesting supply, and register its first wake-up with
-          the Scheduler.
+          {displayName} is live on {RITUAL_TESTNET.name}. Its sovereign guardian has taken custody of the
+          vesting supply and the covenant is now bound into the token's transfer path — these terms are
+          physics from this block forward.
         </p>
         <Card className="mx-auto mt-8 max-w-md p-6 text-left">
           <dl className="flex flex-col gap-3 text-sm">
             <div className="flex justify-between gap-3">
-              <dt className="text-faint">Guardian address</dt>
-              <dd className="mono text-cream">{shortAddr(guardianAddr)}</dd>
+              <dt className="text-faint">Token contract</dt>
+              <dd className="mono text-cream" title={deployed.token}>{shortAddr(deployed.token)}</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-faint">Covenant hash</dt>
-              <dd className="mono text-cream">{shortHash(covenantHash)}</dd>
+              <dt className="text-faint">Covenant contract</dt>
+              <dd className="mono text-cream" title={deployed.covenant}>{shortAddr(deployed.covenant)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-faint">Guardian address</dt>
+              <dd className="mono text-cream" title={deployed.guardian}>{shortAddr(deployed.guardian)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-faint">Terms hash</dt>
+              <dd className="mono text-cream" title={deployed.termsHash}>{shortHash(deployed.termsHash)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-faint">Transaction</dt>
+              <dd className="mono text-cream">
+                <a
+                  href={`${EXPLORER_URL}/tx/${deployed.txHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-ember/30 underline-offset-4 transition-colors hover:text-gold"
+                >
+                  {shortHash(deployed.txHash)}
+                </a>
+              </dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-faint">Network</dt>
@@ -140,8 +191,8 @@ export default function Launch() {
           </dl>
         </Card>
         <div className="mt-8 flex justify-center gap-3">
-          <Link to="/explore" className="btn-ember">Explore launches</Link>
-          <Link to="/docs" className="btn-ghost">Read the docs</Link>
+          <Link to={`/token/${deployed.token.toLowerCase()}`} className="btn-ember">View your launch</Link>
+          <Link to="/explore" className="btn-ghost">Explore launches</Link>
         </div>
       </div>
     );
@@ -222,7 +273,7 @@ export default function Launch() {
 
             <Field
               label={`LP lock duration — ${lpLockDays} days`}
-              hint={`≈ ${fmtBlock(daysToBlocks(lpLockDays))} blocks. The guardian holds 100% of LP until block ${fmtBlock(CURRENT_BLOCK + daysToBlocks(lpLockDays))}.`}
+              hint={`≈ ${fmtBlock(daysToBlocks(lpLockDays))} blocks. The guardian holds 100% of LP until block ${currentBlock ? fmtBlock(currentBlock + daysToBlocks(lpLockDays)) : '…'}.`}
             >
               <input
                 type="range"
@@ -257,7 +308,7 @@ export default function Launch() {
                 {tranchePreview.map((t) => (
                   <div key={t.label} className="flex items-baseline justify-between border-b border-linefaint py-2 text-sm last:border-0">
                     <span className="text-fog">{t.label} — {t.pct.toFixed(2)}%</span>
-                    <span className="mono text-faint">day {t.days} · block {fmtBlock(t.atBlock)}</span>
+                    <span className="mono text-faint">day {t.days}{currentBlock ? ` · block ${fmtBlock(t.atBlock)}` : ''}</span>
                   </div>
                 ))}
               </div>
@@ -306,7 +357,7 @@ export default function Launch() {
                 </li>
                 <li>
                   <strong className="font-semibold">Liquidity.</strong> LP remains locked for {lpLockDays} days, until
-                  block {fmtBlock(CURRENT_BLOCK + daysToBlocks(lpLockDays))}. There is no early-unlock path.
+                  block {currentBlock ? fmtBlock(currentBlock + daysToBlocks(lpLockDays)) : '…'}. There is no early-unlock path.
                 </li>
                 <li>
                   <strong className="font-semibold">Vesting.</strong> The team allocation releases in {vest.tranches} equal
@@ -353,8 +404,13 @@ export default function Launch() {
             </Field>
 
             {wallet.onRitual ? (
-              <button type="button" className="btn-ember w-full" disabled={!canNext} onClick={() => setDeployed(true)}>
-                Deploy covenant to {RITUAL_TESTNET.name}
+              <button
+                type="button"
+                className="btn-ember w-full disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!canNext || deploying}
+                onClick={onDeploy}
+              >
+                {deploying ? 'Deploying covenant — confirm in wallet…' : `Deploy covenant to ${RITUAL_TESTNET.name}`}
               </button>
             ) : wallet.connected ? (
               <button type="button" className="btn-ember w-full" onClick={wallet.switchToRitual}>
@@ -370,13 +426,15 @@ export default function Launch() {
                 {wallet.status === 'connecting' ? 'Connecting…' : 'Connect wallet to deploy'}
               </button>
             )}
-            {wallet.error && <p className="text-xs leading-relaxed text-status-warn">{wallet.error}</p>}
+            {(wallet.error || deployError) && (
+              <p className="text-xs leading-relaxed text-status-warn">{wallet.error || deployError}</p>
+            )}
             <p className="text-xs leading-relaxed text-faint">
               {wallet.connected ? (
                 <>Connected as <span className="mono text-fog">{shortAddr(wallet.address)}</span>. </>
               ) : null}
-              Deployment is a dry run for now — the factory write lands next; connection and network state are
-              live against the constants in <span className="mono">src/config/ritual.js</span>.
+              Deploying sends one transaction to the VestalLaunchFactory: it mints the supply, moves the
+              vesting allocation into covenant custody, provisions the guardian, and registers the launch.
             </p>
           </div>
         )}

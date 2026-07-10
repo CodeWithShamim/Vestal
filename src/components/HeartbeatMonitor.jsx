@@ -1,10 +1,10 @@
-import { fmtBlock, blocksToApproxTime, CURRENT_BLOCK } from '../data/launches.js';
+import { fmtBlock, blocksToApproxTime } from '../data/launches.js';
 
 /**
  * The guardian's vital signs: an ECG trace driven by CSS dash animation,
  * last heartbeat block, and the consensus revival count.
  */
-export default function HeartbeatMonitor({ guardian, currentBlock = CURRENT_BLOCK }) {
+export default function HeartbeatMonitor({ guardian, currentBlock }) {
   const blocksSince = currentBlock - guardian.lastHeartbeatBlock;
   const late = guardian.status === 'reviving';
   const traceColor = late ? '#98ABC4' : '#F2601F';

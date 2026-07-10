@@ -21,6 +21,31 @@ export const COVENANT_ABI = parseAbi([
 export const TOKEN_ABI = parseAbi([
   'function name() view returns (string)',
   'function symbol() view returns (string)',
+  'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)',
+]);
+
+export const POOL_FACTORY_ABI = parseAbi([
+  'function poolOf(address token) view returns (address)',
+]);
+
+export const POOL_ABI = parseAbi([
+  'function reserves() view returns (uint256 native_, uint256 token_)',
+  'function totalSupply() view returns (uint256)',
+  'function priceX18() view returns (uint256)',
+  'function quoteBuy(uint256 nativeIn) view returns (uint256 tokensOut)',
+  'function quoteSell(uint256 tokenIn) view returns (uint256 nativeOut)',
+  'function buy(uint256 minTokensOut) payable returns (uint256 tokensOut)',
+  'function sell(uint256 tokenIn, uint256 minNativeOut) returns (uint256 nativeOut)',
+  'event Swap(address indexed trader, bool indexed isBuy, uint256 nativeAmount, uint256 tokenAmount, uint256 priceX18)',
+]);
+
+export const FACTORY_ABI = parseAbi([
+  'struct TokenParams { string name; string symbol; uint256 totalSupply; }',
+  'struct CovenantTerms { uint64 lpLockUntilBlock; uint16 lpLockedBps; uint16 devWalletCapBps; uint32 sellWindowBlocks; uint32 monitorEveryBlocks; }',
+  'struct VestingTranche { string label; uint16 supplyBps; uint64 releaseAtBlock; address recipient; bool released; }',
+  'function createLaunch(TokenParams params, CovenantTerms terms, VestingTranche[] tranches) returns (address token, address covenant, address guardian)',
+  'event LaunchCreated(address indexed token, address indexed covenant, address indexed creator, address guardian, bytes32 termsHash)',
 ]);
 
 /** ActionType enum order in ICovenant.sol → frontend event-type union. */

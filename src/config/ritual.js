@@ -54,6 +54,8 @@ export const PRECOMPILES = {
 export const VESTAL_CONTRACTS = {
   LAUNCH_FACTORY: env.VITE_LAUNCH_FACTORY || '0x31531123eB88B51E6F64e3d910Dc14a5b9213070',
   COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0xCa6B29576B41e6563Df1c9dB54C7d9943eBa6c28',
+  /** VestalPoolFactory — token → LaunchPool market resolution. */
+  POOL_FACTORY: env.VITE_POOL_FACTORY || '0xc85e0CAdc9D39707914B1934427B5Cf2d4E689e8',
 };
 
 /** True when a registry address is configured — chain reads replace mocks. */
