@@ -58,6 +58,8 @@ any authority over the launch. There are no admin keys anywhere in the system.
 | `EnforcementEvent[]` log               | `EnforcementAction` event history            |
 | Guardian status badge                  | `covenant.guardianStatus()` (same derivation)|
 | UI percents                            | basis points on-chain (bps / 100 = %)        |
+| Market card / price chart              | `VestalPoolFactory.poolOf()` → `LaunchPool` reserves + `Swap` events |
+| Buy widget                             | `LaunchPool.buy()` (0.3% fee, constant product) |
 
 Contract addresses go into the frontend's `src/config/ritual.js` →
 `VESTAL_CONTRACTS` after deployment.
@@ -82,6 +84,16 @@ never reach covenant/factory/token logic. `Deploy.s.sol` auto-detects: if slot
 | MockGuardianProvider | `0x3C09d834b9ad1c3e89bC37C81a622C0572aE5B18` |
 | Demo NLT token    | `0xd959047ac90112Cfe99D4F2EA1018F4b44467ad8` |
 | Demo covenant     | `0x7aC9D0c3a0640cD3a7F740ed667F38a701D71EF1` |
+| VestalPoolFactory | `0xc85e0CAdc9D39707914B1934427B5Cf2d4E689e8` |
+| NLT LaunchPool    | `0xA543076ed721211BB511B094E948cEcE092FEd0d` |
+
+The market layer (`LaunchPool` + `VestalPoolFactory`) is a minimal
+native-paired constant-product AMM whose LP shares are ERC20 — the NLT pool's
+shares are locked in the demo covenant via `lockLp()`, so "LP locked" on the
+token page is literal custody. Selling into a pool is a token transfer, so the
+covenant's sell cap and freezes bite on every sell with no extra wiring.
+`DeployMarket.s.sol` deploys the factory and (given `TOKEN=`) creates, seeds,
+and covenant-locks a pool in one run.
 
 The agent precompile slots have no code on the current testnet, so the mock
 provider is deployed (guardian = deployer EOA). Swap to RitualGuardianProvider
@@ -92,7 +104,7 @@ timestamps are in **milliseconds**.
 
 ```bash
 forge build          # compile
-forge test           # 19 tests: wiring, vesting, caps, freeze, LP, status, log
+forge test           # 28 tests: wiring, vesting, caps, freeze, LP, status, log, pool
 forge script script/Deploy.s.sol                    # dry run
 forge script script/Deploy.s.sol --rpc-url $RITUAL_RPC_URL --broadcast
 FACTORY=0x... forge script script/DemoLaunch.s.sol --rpc-url http://localhost:8545 --broadcast
