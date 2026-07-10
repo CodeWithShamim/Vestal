@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces */
+  --color-ink: #0a0a0c;
+  --color-surface: #131318;
+  --color-raise: #1a1a21;
+  --color-line: #26262f;
+  --color-linefaint: #1d1d24;
+
+  /* Text */
+  --color-cream: #f2ede3;
+  --color-fog: #9a948a;
+  --color-faint: #6b665e;
+
+  /* Accent — the only brand hue */
+  --color-ember: #f2601f;
+  --color-emberdim: #b8410f;
+  --color-gold: #ffb347;
+
+  /* Reserved status colors (never used as series colors) */
+  --color-status-good: #7fc490;
+  --color-status-warn: #e3a93c;
+  --color-status-info: #98abc4;
+
+  /* Composition ramp for the allocation donut (sequential, monotonic lightness) */
+  --color-ramp-1: #ffc46b;
+  --color-ramp-2: #f2711f;
+  --color-ramp-3: #c24632;
+  --color-ramp-4: #8c3b1e;
+
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+
+  --animate-pulse-ring: pulse-ring 2.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  --animate-flicker: flicker 5s ease-in-out infinite;
+  --animate-drift: drift 26s ease-in-out infinite alternate;
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  --animate-ecg: ecg 3.4s linear infinite;
+  --animate-spin-slow: spin 40s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.02);
+  }
+  55% {
+    opacity: 0.75;
+    transform: translateY(1px) scale(0.985);
+  }
+  80% {
+    opacity: 0.95;
+    transform: translateY(-1px) scale(1.01);
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(-4%, 2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ecg {
+  from {
+    stroke-dashoffset: 480;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-cream);
+  font-family: var(--font-body);
+  font-feature-settings: "ss01" on, "cv11" on;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-ember) 70%, black);
+  color: var(--color-cream);
+}
+
+/* Recessive scrollbar on dark */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+@layer components {
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+  }
+
+  .btn-ember {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-[#1a0c04] transition-transform duration-200;
+    background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-ember) 100%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.25) inset,
+      0 8px 24px -8px rgba(242, 96, 31, 0.55);
+  }
+  .btn-ember:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.25) inset,
+      0 12px 28px -8px rgba(242, 96, 31, 0.7);
+  }
+  .btn-ember:active {
+    transform: translateY(0);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-transparent px-5 py-3 text-sm font-semibold text-cream transition-colors duration-200 hover:border-fog/60 hover:bg-raise;
+  }
+
+  .card-lift {
+    @apply transition-all duration-300;
+  }
+  .card-lift:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--color-ember) 35%, var(--color-line));
+    box-shadow: 0 18px 40px -22px rgba(242, 96, 31, 0.25);
+  }
+
+  .text-ember-gradient {
+    background: linear-gradient(120deg, var(--color-gold) 10%, var(--color-ember) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hairline {
+    border-color: var(--color-linefaint);
+  }
+
+  .kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-fog;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.8125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
