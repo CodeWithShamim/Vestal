@@ -9,11 +9,18 @@
  * values before wiring real reads/writes.
  */
 
+/**
+ * Vite env overrides (VITE_* in .env.local) let local dev point at anvil
+ * without touching this file. Guarded so the module also loads in plain
+ * node (smoke/prerender scripts), where import.meta.env is undefined.
+ */
+const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
+
 /** JSON-RPC endpoint for Ritual Chain testnet. PLACEHOLDER — set the published URL. */
-export const RPC_URL = 'https://rpc.testnet.ritual.invalid';
+export const RPC_URL = env.VITE_RPC_URL || 'https://rpc.testnet.ritual.invalid';
 
 /** Ritual Chain testnet chain id. PLACEHOLDER — set the published id. */
-export const CHAIN_ID = 0;
+export const CHAIN_ID = Number(env.VITE_CHAIN_ID ?? 0);
 
 /** Block explorer base URL. PLACEHOLDER. */
 export const EXPLORER_URL = 'https://explorer.testnet.ritual.invalid';
@@ -41,9 +48,13 @@ export const PRECOMPILES = {
 
 /** Vestal protocol contracts on testnet. PLACEHOLDERS until deployment. */
 export const VESTAL_CONTRACTS = {
-  LAUNCH_FACTORY: '0x0000000000000000000000000000000000000000',
-  COVENANT_REGISTRY: '0x0000000000000000000000000000000000000000',
+  LAUNCH_FACTORY: env.VITE_LAUNCH_FACTORY || '0x0000000000000000000000000000000000000000',
+  COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0x0000000000000000000000000000000000000000',
 };
+
+/** True when a registry address is configured — chain reads replace mocks. */
+export const CHAIN_READS_ENABLED =
+  VESTAL_CONTRACTS.COVENANT_REGISTRY !== '0x0000000000000000000000000000000000000000';
 
 export const RITUAL_TESTNET = {
   name: 'Ritual Chain Testnet',

@@ -29,7 +29,7 @@ function EventIcon({ type }) {
 }
 
 /** Enforcement log timeline — every entry carries its TEE attestation hash. */
-export default function Timeline({ events }) {
+export default function Timeline({ events, currentBlock = CURRENT_BLOCK }) {
   return (
     <ol className="relative">
       {events.map((e, i) => {
@@ -50,7 +50,7 @@ export default function Timeline({ events }) {
                   {meta.label}
                 </span>
                 <span className="mono text-faint">
-                  block {fmtBlock(e.block)} · {blocksToApproxTime(CURRENT_BLOCK - e.block)} ago
+                  block {fmtBlock(e.block)} · {blocksToApproxTime(currentBlock - e.block)} ago
                 </span>
               </div>
               <p className="mt-1 text-sm leading-relaxed text-fog">{e.detail}</p>

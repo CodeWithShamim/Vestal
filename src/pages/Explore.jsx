@@ -5,13 +5,12 @@ import Badge from '../components/Badge.jsx';
 import TokenAvatar from '../components/TokenAvatar.jsx';
 import TrustMeter from '../components/TrustMeter.jsx';
 import {
-  LAUNCHES,
-  CURRENT_BLOCK,
   vestedPct,
   trustScore,
   fmtUsd,
   blocksToApproxTime,
 } from '../data/launches.js';
+import { useLaunches } from '../data/useLaunches.js';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All' },
@@ -26,10 +25,10 @@ const SORTS = [
   { id: 'trust', label: 'Trust score' },
 ];
 
-function LaunchCard({ launch }) {
+function LaunchCard({ launch, currentBlock }) {
   const vested = vestedPct(launch);
   const score = trustScore(launch);
-  const lockBlocksLeft = launch.terms.lpLockUntilBlock - CURRENT_BLOCK;
+  const lockBlocksLeft = launch.terms.lpLockUntilBlock - currentBlock;
 
   return (
     <Link to={`/token/${launch.id}`} className="block focus-visible:outline-2 focus-visible:outline-ember">
@@ -76,9 +75,10 @@ function LaunchCard({ launch }) {
 export default function Explore() {
   const [status, setStatus] = useState('all');
   const [sort, setSort] = useState('newest');
+  const { launches, currentBlock, source } = useLaunches();
 
   const shown = useMemo(() => {
-    let list = LAUNCHES.filter((l) => status === 'all' || l.guardian.status === status);
+    let list = launches.filter((l) => status === 'all' || l.guardian.status === status);
     const bySort = {
       newest: (a, b) => b.createdAtBlock - a.createdAtBlock,
       guarded: (a, b) => b.market.guardedUsd - a.market.guardedUsd,
@@ -136,14 +136,17 @@ export default function Explore() {
       ) : (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((l) => (
-            <LaunchCard key={l.id} launch={l} />
+            <LaunchCard key={l.id} launch={l} currentBlock={currentBlock} />
           ))}
         </div>
       )}
 
       <p className="mt-10 text-xs text-faint">
-        Illustrative testnet data. Trust scores are derived from each guardian's attested enforcement history —
-        audits passed and releases executed raise them; violations caught lower them.
+        {source === 'chain'
+          ? 'Includes live on-chain launches read from the CovenantRegistry; remaining entries are illustrative testnet data.'
+          : 'Illustrative testnet data.'}{' '}
+        Trust scores are derived from each guardian's attested enforcement history — audits passed and
+        releases executed raise them; violations caught lower them.
       </p>
     </div>
   );

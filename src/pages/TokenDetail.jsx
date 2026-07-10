@@ -8,7 +8,6 @@ import Timeline from '../components/Timeline.jsx';
 import Sparkline from '../components/Sparkline.jsx';
 import HeartbeatMonitor from '../components/HeartbeatMonitor.jsx';
 import {
-  getLaunch,
   priceSeries,
   vestedPct,
   trustScore,
@@ -18,8 +17,8 @@ import {
   mockHex,
   shortHash,
   blocksToApproxTime,
-  CURRENT_BLOCK,
 } from '../data/launches.js';
+import { useLaunch } from '../data/useLaunches.js';
 
 function TermRow({ title, detail, attestationKey }) {
   return (
@@ -52,7 +51,7 @@ function BuyWidget({ launch }) {
   const [amount, setAmount] = useState('');
   const [connected, setConnected] = useState(false);
   const parsed = parseFloat(amount);
-  const estimate = parsed > 0 ? parsed / launch.market.priceUsd : 0;
+  const estimate = parsed > 0 && launch.market.priceUsd > 0 ? parsed / launch.market.priceUsd : 0;
 
   return (
     <Card className="p-6">
@@ -100,14 +99,18 @@ function BuyWidget({ launch }) {
 
 export default function TokenDetail() {
   const { id } = useParams();
-  const launch = getLaunch(id);
-  if (!launch) return <Navigate to="/explore" replace />;
+  const { launch, currentBlock, pending } = useLaunch(id);
+  if (!launch) {
+    // A chain launch id may not resolve until the registry read lands.
+    if (pending) return null;
+    return <Navigate to="/explore" replace />;
+  }
 
   const { guardian, terms, market } = launch;
   const vested = vestedPct(launch);
   const score = trustScore(launch);
   const series = priceSeries(launch);
-  const lockBlocksLeft = terms.lpLockUntilBlock - CURRENT_BLOCK;
+  const lockBlocksLeft = terms.lpLockUntilBlock - currentBlock;
   const nextTranche = terms.vesting.find((t) => !t.released);
 
   return (
@@ -227,7 +230,7 @@ export default function TokenDetail() {
                 </dl>
               </div>
 
-              <HeartbeatMonitor guardian={guardian} />
+              <HeartbeatMonitor guardian={guardian} currentBlock={currentBlock} />
 
               <TrustMeter score={score} />
 
@@ -244,7 +247,7 @@ export default function TokenDetail() {
                     title={`Vesting: ${terms.vesting.length} tranches, ${terms.vesting.reduce((s, t) => s + t.pct, 0)}% of supply`}
                     detail={
                       nextTranche
-                        ? `Next: ${nextTranche.label} (${nextTranche.pct}%) at block ${fmtBlock(nextTranche.atBlock)} — in ${blocksToApproxTime(nextTranche.atBlock - CURRENT_BLOCK)}.`
+                        ? `Next: ${nextTranche.label} (${nextTranche.pct}%) at block ${fmtBlock(nextTranche.atBlock)} — in ${blocksToApproxTime(nextTranche.atBlock - currentBlock)}.`
                         : 'All tranches released on schedule.'
                     }
                     attestationKey={`${launch.id}:term:vesting`}
@@ -269,7 +272,7 @@ export default function TokenDetail() {
                   <span className="text-[11px] text-faint">newest first</span>
                 </div>
                 <div className="mt-4">
-                  <Timeline events={launch.log} />
+                  <Timeline events={launch.log} currentBlock={currentBlock} />
                 </div>
               </div>
             </div>

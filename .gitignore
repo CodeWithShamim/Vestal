@@ -35,3 +35,8 @@ Thumbs.db
 # Vite
 .vite/
 *.local
+
+# Foundry (contracts/)
+contracts/out/
+contracts/cache/
+contracts/broadcast/
