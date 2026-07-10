@@ -31,7 +31,13 @@ contract LaunchPool is ERC20 {
 
     event LiquidityAdded(address indexed provider, uint256 nativeIn, uint256 tokenIn, uint256 shares);
     event LiquidityRemoved(address indexed provider, uint256 nativeOut, uint256 tokenOut, uint256 shares);
-    event Swap(address indexed trader, bool indexed isBuy, uint256 nativeAmount, uint256 tokenAmount, uint256 priceX18);
+    event Swap(
+        address indexed trader,
+        bool indexed isBuy,
+        uint256 nativeAmount,
+        uint256 tokenAmount,
+        uint256 priceX18
+    );
 
     /// 0.3% swap fee, paid to the pool (accrues to LP shares).
     uint256 public constant FEE_BPS = 30;
@@ -63,14 +69,18 @@ contract LaunchPool is ERC20 {
     /// Deposit native + tokens (approve tokens first). The first deposit
     /// sets the price; later deposits must roughly match the current
     /// ratio — excess of either side simply improves the price for the
-    /// other, so callers should quote first.
-    function addLiquidity(uint256 tokenIn) external payable lock returns (uint256 shares) {
+    /// other, so callers should quote first. `minShares` is the slippage
+    /// guard: a swap landing between quote and execution shifts the
+    /// ratio, and without it the min() below would silently donate the
+    /// depositor's excess side to existing LPs.
+    function addLiquidity(uint256 tokenIn, uint256 minShares) external payable lock returns (uint256 shares) {
         if (msg.value == 0 || tokenIn == 0) revert ZeroAmount();
         uint256 supply = totalSupply;
         shares = supply == 0
             ? _sqrt(msg.value * tokenIn)
             : _min((msg.value * supply) / reserveNative, (tokenIn * supply) / reserveToken);
         if (shares == 0) revert ZeroShares();
+        if (shares < minShares) revert SlippageExceeded(shares, minShares);
 
         require(token.transferFrom(msg.sender, address(this), tokenIn), "LaunchPool: token transfer failed");
         reserveNative += msg.value;
@@ -80,7 +90,11 @@ contract LaunchPool is ERC20 {
     }
 
     /// Burn shares for the proportional slice of both reserves.
-    function removeLiquidity(uint256 shares, address to) external lock returns (uint256 nativeOut, uint256 tokenOut) {
+    function removeLiquidity(uint256 shares, address to)
+        external
+        lock
+        returns (uint256 nativeOut, uint256 tokenOut)
+    {
         uint256 supply = totalSupply;
         if (shares == 0 || supply == 0) revert ZeroShares();
         nativeOut = (reserveNative * shares) / supply;

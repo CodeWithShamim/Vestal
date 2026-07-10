@@ -71,7 +71,7 @@ contract LaunchPoolTest is Test {
     function _seed() internal returns (uint256 shares) {
         vm.startPrank(creator);
         token.approve(address(pool), SEED_TOKENS);
-        shares = pool.addLiquidity{value: SEED_NATIVE}(SEED_TOKENS);
+        shares = pool.addLiquidity{value: SEED_NATIVE}(SEED_TOKENS, 0);
         vm.stopPrank();
     }
 
@@ -89,6 +89,26 @@ contract LaunchPoolTest is Test {
         assertEq(pool.reserveToken(), SEED_TOKENS);
         // price = native/token, 1e18-scaled: 10e18 * 1e18 / 10_000_000e18 = 1e12
         assertEq(pool.priceX18(), 1e12);
+    }
+
+    function test_addLiquidity_slippageGuard() public {
+        uint256 firstShares = _seed();
+        // A same-ratio deposit of half the pool mints exactly half the
+        // share supply; demanding one share more must revert — the guard
+        // a depositor uses against a ratio moved between quote and
+        // execution. (Half-size so the creator's transfer to the buyer
+        // stays inside the covenant sell cap.)
+        uint256 expected = firstShares / 2;
+        vm.prank(creator);
+        token.transfer(buyer, SEED_TOKENS / 2);
+        vm.startPrank(buyer);
+        token.approve(address(pool), SEED_TOKENS / 2);
+        vm.expectRevert(abi.encodeWithSelector(LaunchPool.SlippageExceeded.selector, expected, expected + 1));
+        pool.addLiquidity{value: SEED_NATIVE / 2}(SEED_TOKENS / 2, expected + 1);
+
+        uint256 got = pool.addLiquidity{value: SEED_NATIVE / 2}(SEED_TOKENS / 2, expected);
+        assertEq(got, expected);
+        vm.stopPrank();
     }
 
     function test_buy_transfersTokensAndMovesPrice() public {

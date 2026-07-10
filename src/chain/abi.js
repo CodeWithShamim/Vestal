@@ -35,7 +35,7 @@ export const POOL_FACTORY_ABI = parseAbi([
 export const POOL_ABI = parseAbi([
   'function reserves() view returns (uint256 native_, uint256 token_)',
   'function totalSupply() view returns (uint256)',
-  'function addLiquidity(uint256 tokenIn) payable returns (uint256 shares)',
+  'function addLiquidity(uint256 tokenIn, uint256 minShares) payable returns (uint256 shares)',
   'function priceX18() view returns (uint256)',
   'function quoteBuy(uint256 nativeIn) view returns (uint256 tokensOut)',
   'function quoteSell(uint256 tokenIn) view returns (uint256 nativeOut)',

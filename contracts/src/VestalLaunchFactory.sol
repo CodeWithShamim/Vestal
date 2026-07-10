@@ -28,6 +28,7 @@ import {IGuardianProvider} from "./interfaces/IGuardianProvider.sol";
 contract VestalLaunchFactory {
     error InvalidSupply();
     error InvalidTerms();
+    error InvalidTranche();
     error VestingOverflow();
     error NoTranches();
 
@@ -69,6 +70,12 @@ contract VestalLaunchFactory {
 
         uint256 vestingBps;
         for (uint256 i = 0; i < tranches.length; i++) {
+            // A tranche due in the past would be releasable the moment the
+            // launch lands — "vesting" in name only; zero-bps tranches are
+            // no-op log entries dressed up as commitments.
+            if (tranches[i].supplyBps == 0 || tranches[i].releaseAtBlock <= block.number) {
+                revert InvalidTranche();
+            }
             vestingBps += tranches[i].supplyBps;
         }
         // The creator must keep some circulating share; a covenant that

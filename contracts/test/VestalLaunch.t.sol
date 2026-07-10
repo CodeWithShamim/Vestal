@@ -66,9 +66,10 @@ contract VestalLaunchTest is Test {
 
     function _launch() internal returns (address, address, address) {
         vm.prank(creator);
-        return factory.createLaunch(
-            VestalLaunchFactory.TokenParams("Aurum", "AUR", SUPPLY), _terms(), _tranches()
-        );
+        return
+            factory.createLaunch(
+                VestalLaunchFactory.TokenParams("Aurum", "AUR", SUPPLY), _terms(), _tranches()
+            );
     }
 
     // ------------------------------------------------------------------
@@ -120,6 +121,22 @@ contract VestalLaunchTest is Test {
         vm.expectRevert(VestalLaunchFactory.VestingOverflow.selector);
         vm.prank(creator);
         factory.createLaunch(VestalLaunchFactory.TokenParams("X", "X", SUPPLY), _terms(), tr);
+    }
+
+    function test_factoryRejectsDegenerateTranches() public {
+        // A tranche already due at launch is "vesting" in name only.
+        VestingTranche[] memory past = _tranches();
+        past[0].releaseAtBlock = uint64(block.number);
+        vm.expectRevert(VestalLaunchFactory.InvalidTranche.selector);
+        vm.prank(creator);
+        factory.createLaunch(VestalLaunchFactory.TokenParams("X", "X", SUPPLY), _terms(), past);
+
+        // Zero-bps tranches are no-op commitments.
+        VestingTranche[] memory zero = _tranches();
+        zero[1].supplyBps = 0;
+        vm.expectRevert(VestalLaunchFactory.InvalidTranche.selector);
+        vm.prank(creator);
+        factory.createLaunch(VestalLaunchFactory.TokenParams("X", "X", SUPPLY), _terms(), zero);
     }
 
     // ------------------------------------------------------------------
@@ -275,6 +292,18 @@ contract VestalLaunchTest is Test {
         covenant.heartbeat(keccak256("ckpt"), bytes32(uint256(3)));
         assertEq(uint8(covenant.guardianStatus()), uint8(GuardianStatus.Active));
         assertEq(covenant.lastHeartbeatBlock(), uint64(block.number));
+    }
+
+    function test_schedulerDeferralRefundsFunding() public {
+        // No scheduler precompile in this environment: registration is
+        // deferred and the funding must come back — the covenant has no
+        // native withdrawal path, so anything kept would be stranded.
+        vm.deal(guardian, 1 ether);
+        vm.prank(guardian);
+        uint256 taskId = covenant.registerWithScheduler{value: 1 ether}();
+        assertEq(taskId, 0);
+        assertEq(guardian.balance, 1 ether);
+        assertEq(address(covenant).balance, 0);
     }
 
     function test_revivalRecorded() public {

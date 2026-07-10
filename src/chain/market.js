@@ -23,6 +23,20 @@ const BLOCKS_24H = Math.round(86_400 / BLOCK_TIME_SECONDS);
 
 const toNative = (wei) => Number(wei) / 1e18;
 
+const bigintMin = (a, b) => (a < b ? a : b);
+
+/** Babylonian integer sqrt, matching LaunchPool's first-deposit share mint. */
+function bigintSqrt(x) {
+  if (x < 2n) return x;
+  let z = (x + 1n) / 2n;
+  let y = x;
+  while (z < y) {
+    y = z;
+    z = (x / z + z) / 2n;
+  }
+  return y;
+}
+
 /**
  * Trades already seen this session, per pool (keyed by txHash:logIndex).
  * The public RPC is load-balanced across nodes with inconsistent log
@@ -289,13 +303,27 @@ export async function openMarket({ token, covenant, tokenAmount, nativeAmount, o
 
   onStep('seed');
   const tokenIn = parseEther(tokenAmount.toFixed(18));
+  const nativeIn = parseEther(nativeAmount.toFixed(18));
   await ensureAllowance(client, wallet, { token, spender: pool, amount: tokenIn });
+  // Mirror the pool's share formula and apply the same 1% guard as
+  // trades: without a floor, a swap landing between this quote and the
+  // deposit shifts the ratio and silently donates the excess side to
+  // existing LPs. A fresh pool mints sqrt(native * tokens) — deterministic,
+  // but quoted the same way in case someone else seeded first.
+  const poolC = { address: pool, abi: POOL_ABI };
+  const [[reserveNative, reserveToken], shareSupply] = await Promise.all([
+    client.readContract({ ...poolC, functionName: 'reserves' }),
+    client.readContract({ ...poolC, functionName: 'totalSupply' }),
+  ]);
+  const expectedShares =
+    shareSupply === 0n
+      ? bigintSqrt(nativeIn * tokenIn)
+      : bigintMin((nativeIn * shareSupply) / reserveNative, (tokenIn * shareSupply) / reserveToken);
   await writeAndConfirm(client, wallet, {
-    address: pool,
-    abi: POOL_ABI,
+    ...poolC,
     functionName: 'addLiquidity',
-    args: [tokenIn],
-    value: parseEther(nativeAmount.toFixed(18)),
+    args: [tokenIn, (expectedShares * 99n) / 100n],
+    value: nativeIn,
   });
 
   onStep('lock');

@@ -2,7 +2,13 @@
 pragma solidity 0.8.28;
 
 import {ERC20} from "./lib/ERC20.sol";
-import {ActionType, GuardianStatus, CovenantTerms, VestingTranche, ICovenantHook} from "./interfaces/ICovenant.sol";
+import {
+    ActionType,
+    GuardianStatus,
+    CovenantTerms,
+    VestingTranche,
+    ICovenantHook
+} from "./interfaces/ICovenant.sol";
 import {IScheduler, RitualPrecompiles} from "./interfaces/IRitual.sol";
 
 /**
@@ -46,6 +52,7 @@ contract GuardianCovenant is ICovenantHook {
     error LpStillLocked(uint64 unlockBlock);
     error LpTokenMismatch();
     error InvalidTranche();
+    error RefundFailed();
 
     // ------------------------------------------------------------------
     // Events
@@ -71,9 +78,9 @@ contract GuardianCovenant is ICovenantHook {
     // ------------------------------------------------------------------
 
     /// Blocks past a tranche's release block after which anyone may
-    /// execute it. ~7 days at 2s blocks; the guardian is normally
-    /// hundreds of thousands of blocks faster.
-    uint64 public constant FAILSAFE_GRACE_BLOCKS = 302_400;
+    /// execute it. ~7 days at Ritual's 0.2s blocks (432,000 blocks/day);
+    /// the guardian is normally millions of blocks faster.
+    uint64 public constant FAILSAFE_GRACE_BLOCKS = 3_024_000;
 
     /// A guardian whose last heartbeat is older than this many monitor
     /// intervals reads as Reviving (consensus restore in progress).
@@ -160,10 +167,17 @@ contract GuardianCovenant is ICovenantHook {
     function registerWithScheduler() external payable onlyGuardian returns (uint256 taskId) {
         address sched = RitualPrecompiles.SCHEDULER;
         if (sched.code.length == 0) {
+            // Refund any funding sent along: the covenant has no native
+            // withdrawal path, so keeping it would strand it forever.
+            if (msg.value != 0) {
+                (bool ok,) = msg.sender.call{value: msg.value}("");
+                if (!ok) revert RefundFailed();
+            }
             emit SchedulerRegistrationDeferred();
             return 0;
         }
-        taskId = IScheduler(sched).scheduleRecurring{value: msg.value}(address(this), terms.monitorEveryBlocks);
+        taskId =
+            IScheduler(sched).scheduleRecurring{value: msg.value}(address(this), terms.monitorEveryBlocks);
         emit SchedulerRegistered(taskId);
     }
 
@@ -183,7 +197,9 @@ contract GuardianCovenant is ICovenantHook {
     /// freezing — the guardian tightens monitoring first, freezes on
     /// actual violation.
     function recordAudit(bool ok, bytes32 attestation, string calldata detail) external onlyGuardian {
-        emit EnforcementAction(ok ? ActionType.CheckOk : ActionType.Flag, uint64(block.number), attestation, detail);
+        emit EnforcementAction(
+            ok ? ActionType.CheckOk : ActionType.Flag, uint64(block.number), attestation, detail
+        );
     }
 
     /// Heartbeat + state checkpoint, mirrored to the persistent-agent
@@ -239,7 +255,7 @@ contract GuardianCovenant is ICovenantHook {
 
         t.released = true;
         uint256 amount = (token.totalSupply() * t.supplyBps) / BPS;
-        token.transfer(t.recipient, amount);
+        require(token.transfer(t.recipient, amount), "Release transfer failed");
 
         emit TrancheReleased(index, t.recipient, amount, isFailsafe);
         emit EnforcementAction(

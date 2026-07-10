@@ -158,7 +158,7 @@ The guardian is a persistent sovereign agent. Its liveness is layered three deep
    guardian that misses heartbeats is restored from its last checkpoint by the chain itself,
    state and keys intact, and logs a `Revival` action when it comes back.
 3. **Permissionless failsafe** — as the final, trustless backstop, any vesting tranche left
-   unclaimed `FAILSAFE_GRACE_BLOCKS` (302,400 blocks, ~7 days) past its due block becomes
+   unclaimed `FAILSAFE_GRACE_BLOCKS` (3,024,000 blocks, ~7 days at 0.2s blocks) past its due block becomes
    executable by **anyone** — but only to the committed recipient, and never one block early.
    Even if Vestal and Ritual both vanished, funds can be neither rushed nor stranded.
 

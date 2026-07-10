@@ -42,7 +42,10 @@ contract DeployMarket is Script {
             LaunchPool pool = LaunchPool(poolFactory.createPool(tokenAddr));
 
             token.approve(address(pool), seedTokens);
-            uint256 shares = pool.addLiquidity{value: seedNative}(seedTokens);
+            // First deposit into a pool this script just created: the share
+            // count is sqrt(native * tokens), deterministic, so no slippage
+            // floor is needed.
+            uint256 shares = pool.addLiquidity{value: seedNative}(seedTokens, 0);
             console.log("Pool for %s: %s", token.symbol(), address(pool));
             console.log("  seeded %s wei native / %s token wei", seedNative, seedTokens);
 

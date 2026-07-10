@@ -21,10 +21,14 @@ contract DemoLaunch is Script {
 
         VestingTranche[] memory tranches = new VestingTranche[](4);
         address treasury = msg.sender;
-        tranches[0] = VestingTranche("Team tranche 1 of 4", 400, uint64(block.number + 1_100_000), treasury, false);
-        tranches[1] = VestingTranche("Team tranche 2 of 4", 400, uint64(block.number + 2_200_000), treasury, false);
-        tranches[2] = VestingTranche("Team tranche 3 of 4", 400, uint64(block.number + 3_300_000), treasury, false);
-        tranches[3] = VestingTranche("Team tranche 4 of 4", 400, uint64(block.number + 4_400_000), treasury, false);
+        tranches[0] =
+            VestingTranche("Team tranche 1 of 4", 400, uint64(block.number + 1_100_000), treasury, false);
+        tranches[1] =
+            VestingTranche("Team tranche 2 of 4", 400, uint64(block.number + 2_200_000), treasury, false);
+        tranches[2] =
+            VestingTranche("Team tranche 3 of 4", 400, uint64(block.number + 3_300_000), treasury, false);
+        tranches[3] =
+            VestingTranche("Team tranche 4 of 4", 400, uint64(block.number + 4_400_000), treasury, false);
 
         CovenantTerms memory terms = CovenantTerms({
             lpLockUntilBlock: uint64(block.number + 30_000_000),
@@ -43,7 +47,9 @@ contract DemoLaunch is Script {
         if (guardian == msg.sender) {
             covenant.heartbeat(keccak256("demo-checkpoint-1"), keccak256("demo-att-1"));
             covenant.recordAudit(
-                true, keccak256("demo-att-2"), "Dev and insider wallets audited against sell-limit - no violations"
+                true,
+                keccak256("demo-att-2"),
+                "Dev and insider wallets audited against sell-limit - no violations"
             );
             covenant.onScheduledWake(
                 keccak256("demo-att-3"), "Scheduled wake executed - covenant state for NLT re-verified"
