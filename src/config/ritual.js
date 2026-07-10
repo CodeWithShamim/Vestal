@@ -50,12 +50,12 @@ export const PRECOMPILES = {
   PERSISTENT_AGENT_0x0820: '0x0000000000000000000000000000000000000820',
 };
 
-/** Vestal protocol contracts, deployed to Ritual Chain testnet 2026-07-10. */
+/** Vestal protocol contracts, deployed to Ritual Chain testnet 2026-07-11. */
 export const VESTAL_CONTRACTS = {
-  LAUNCH_FACTORY: env.VITE_LAUNCH_FACTORY || '0x31531123eB88B51E6F64e3d910Dc14a5b9213070',
-  COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0xCa6B29576B41e6563Df1c9dB54C7d9943eBa6c28',
+  LAUNCH_FACTORY: env.VITE_LAUNCH_FACTORY || '0x4B231A8816b551839F952b00273Ee8C4B144Ff4f',
+  COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0x7105d70e85fC40dA22E78BC7A5D05880Be01c5Cf',
   /** VestalPoolFactory — token → LaunchPool market resolution. */
-  POOL_FACTORY: env.VITE_POOL_FACTORY || '0xc85e0CAdc9D39707914B1934427B5Cf2d4E689e8',
+  POOL_FACTORY: env.VITE_POOL_FACTORY || '0x2cc1eA2Bf8C320B054a94FbbFE9A89B645Dc8cD3',
 };
 
 /** True when a registry address is configured — chain reads replace mocks. */

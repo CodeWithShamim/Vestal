@@ -378,17 +378,17 @@ Then copy the printed addresses into `VESTAL_CONTRACTS` in
 
 ## Deployed addresses (Ritual Chain testnet)
 
-Chain id **1979** · RPC `https://rpc.ritualfoundation.org` · deployed 2026-07-10:
+Chain id **1979** · RPC `https://rpc.ritualfoundation.org` · deployed 2026-07-11:
 
 | Contract | Address |
 |---|---|
-| CovenantRegistry | `0xCa6B29576B41e6563Df1c9dB54C7d9943eBa6c28` |
-| VestalLaunchFactory | `0x31531123eB88B51E6F64e3d910Dc14a5b9213070` |
-| MockGuardianProvider | `0x3C09d834b9ad1c3e89bC37C81a622C0572aE5B18` |
-| VestalPoolFactory | `0xc85e0CAdc9D39707914B1934427B5Cf2d4E689e8` |
-| Demo NLT token | `0xd959047ac90112Cfe99D4F2EA1018F4b44467ad8` |
-| Demo covenant | `0x7aC9D0c3a0640cD3a7F740ed667F38a701D71EF1` |
-| NLT LaunchPool | `0xA543076ed721211BB511B094E948cEcE092FEd0d` |
+| CovenantRegistry | `0x7105d70e85fC40dA22E78BC7A5D05880Be01c5Cf` |
+| VestalLaunchFactory | `0x4B231A8816b551839F952b00273Ee8C4B144Ff4f` |
+| MockGuardianProvider | `0xdfE56a73b23B6Ad65d43D67B616c9Bc40970AF6B` |
+| VestalPoolFactory | `0x2cc1eA2Bf8C320B054a94FbbFE9A89B645Dc8cD3` |
+| Demo NLT token | `0x0b0f79D3DFEe2d4B2380b04Fa2E0D95d789638f1` |
+| Demo covenant | `0x516Bf405014429635eb0d3F2dd3C6375F9393dF5` |
+| NLT LaunchPool | `0xf67C44FFb02877BfB2aC16492fbBDeC76E19faeA` |
 
 The agent precompile slots have no code on the current testnet, so the **mock** guardian
 provider is live (guardian = deployer EOA). Swap to `RitualGuardianProvider` when the

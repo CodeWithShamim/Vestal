@@ -31,6 +31,7 @@ contract VestalLaunchFactory {
     error InvalidTranche();
     error VestingOverflow();
     error NoTranches();
+    error TransferFailed();
 
     event LaunchCreated(
         address indexed token,
@@ -85,10 +86,10 @@ contract VestalLaunchFactory {
         VestalToken t = new VestalToken(params.name, params.symbol, params.totalSupply, address(this));
 
         uint256 vestingAmount = (params.totalSupply * vestingBps) / BPS;
-        t.transfer(msg.sender, params.totalSupply - vestingAmount);
+        if (!t.transfer(msg.sender, params.totalSupply - vestingAmount)) revert TransferFailed();
 
         GuardianCovenant c = new GuardianCovenant(address(t), msg.sender, terms, tranches);
-        t.transfer(address(c), vestingAmount);
+        if (!t.transfer(address(c), vestingAmount)) revert TransferFailed();
         t.bindCovenant(address(c));
 
         guardian = guardianProvider.provisionGuardian(address(c), c.termsHash());
