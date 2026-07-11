@@ -185,6 +185,18 @@ it deploys the Ritual provider; otherwise it deploys [MockGuardianProvider](cont
 (guardian = deployer EOA) so the full flow runs on anvil and today's testnet unchanged. ABI
 changes never reach covenant/factory/token logic.
 
+**Running the guardian for real today:** until the precompiles ship, the guardian's job is
+performed by a real off-chain agent, [scripts/guardian-agent.mjs](scripts/guardian-agent.mjs)
+(`npm run guardian`). It signs with the guardian key (from `contracts/.env`), sweeps every
+registered covenant, and does exactly what the sovereign agent will do natively: sends
+`heartbeat()` checkpoints whose hash commits to a re-derivable snapshot of live covenant state,
+audits the tracked creator wallet against the committed sell cap via `recordAudit()`, and calls
+`executeVestingRelease()` the moment a tranche comes due. Its attestations are honest hash
+commitments over the same snapshot — a TEE quote replaces them when the real provider goes live.
+Note that the first heartbeat arms the on-chain staleness check: once the agent has spoken, it
+must keep heartbeating within 3 monitor intervals or `guardianStatus()` reads Reviving — which
+is precisely the behavior the status is meant to surface.
+
 ### Step 5 — The market trades under the same covenant
 
 [`LaunchPool`](contracts/src/LaunchPool.sol) is a minimal constant-product AMM pairing the

@@ -117,8 +117,13 @@ and covenant-locks a pool in one run.
 
 The agent precompile slots have no code on the current testnet, so the mock
 provider is deployed (guardian = deployer EOA). Swap to RitualGuardianProvider
-when the precompiles ship. Note: the chain runs ~5 blocks/s and block
-timestamps are in **milliseconds**.
+when the precompiles ship. Until then the guardian's duties are performed for
+real by an off-chain agent holding that EOA's key — `npm run guardian` at the
+repo root (see [scripts/guardian-agent.mjs](../scripts/guardian-agent.mjs)):
+state-committed `heartbeat()` checkpoints every monitor interval, sell-cap
+audits via `recordAudit()`, and `executeVestingRelease()` when tranches come
+due. Note: the chain runs ~5 blocks/s and block timestamps are in
+**milliseconds**.
 
 ## Develop
 
