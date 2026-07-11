@@ -105,6 +105,13 @@ async function mapLaunch(client, entry, currentBlock) {
   const [lpLockUntilBlock, lpLockedBps, devWalletCapBps, , monitorEveryBlocks] = terms;
   const [agent, deployedAt, lastHeartbeat, revivalCount, status] = summary;
 
+  // Mirror guardianStatus()'s armed check for covenants deployed before
+  // it existed: with the Scheduler precompile not live on this testnet,
+  // a guardian that never heartbeat past its deployment block is silent
+  // by design, not lapsed — old covenants still report that as Reviving.
+  let guardianStatus = GUARDIAN_STATUSES[status] ?? 'active';
+  if (guardianStatus === 'reviving' && num(lastHeartbeat) <= num(deployedAt)) guardianStatus = 'active';
+
   return {
     id: entry.token.toLowerCase(),
     covenant: entry.covenant,
@@ -121,7 +128,7 @@ async function mapLaunch(client, entry, currentBlock) {
       deployedBlock: num(deployedAt),
       lastHeartbeatBlock: num(lastHeartbeat),
       revivals: num(revivalCount),
-      status: GUARDIAN_STATUSES[status] ?? 'active',
+      status: guardianStatus,
     },
     terms: {
       lpLockUntilBlock: num(lpLockUntilBlock),

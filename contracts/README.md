@@ -79,13 +79,13 @@ never reach covenant/factory/token logic. `Deploy.s.sol` auto-detects: if slot
 
 | Contract          | Address                                      |
 | ----------------- | -------------------------------------------- |
-| CovenantRegistry  | `0x7105d70e85fC40dA22E78BC7A5D05880Be01c5Cf` |
-| VestalLaunchFactory | `0x4B231A8816b551839F952b00273Ee8C4B144Ff4f` |
-| MockGuardianProvider | `0xdfE56a73b23B6Ad65d43D67B616c9Bc40970AF6B` |
-| Demo NLT token    | `0x0b0f79D3DFEe2d4B2380b04Fa2E0D95d789638f1` |
-| Demo covenant     | `0x516Bf405014429635eb0d3F2dd3C6375F9393dF5` |
-| VestalPoolFactory | `0x2cc1eA2Bf8C320B054a94FbbFE9A89B645Dc8cD3` |
-| NLT LaunchPool    | `0xf67C44FFb02877BfB2aC16492fbBDeC76E19faeA` |
+| CovenantRegistry  | `0x56F78A7e8Afe11C69228283CCe3971F73486E7fE` |
+| VestalLaunchFactory | `0x726D2c8e17d3d445c1c0088470dA2DBcCe345B35` |
+| MockGuardianProvider | `0x15cce71713b686aaE99C441Ab4e3dEBf7853A889` |
+| Demo NLT token    | `0x7EF4FCB9C878a9f3f7f6318d8C6229edc260ec01` |
+| Demo covenant     | `0x09Ca97c97325248A64ED849A2Ec4e9A2c5F37361` |
+| VestalPoolFactory | `0xCdB83Cdeba6CD12116925E6AF5cDF17d35D2530B` |
+| NLT LaunchPool    | `0x6d849a7c64e4Ff693D38235e2244dDD2f1055744` |
 
 The market layer (`LaunchPool` + `VestalPoolFactory`) is a minimal
 native-paired constant-product AMM whose LP shares are ERC20 — the NLT pool's

@@ -105,6 +105,10 @@ contract GuardianCovenant is ICovenantHook {
     uint64 public lastHeartbeatBlock;
     uint32 public revivals;
 
+    /// Recurring wake-up task with the native Scheduler; 0 while
+    /// registration is deferred (precompile slot empty on this chain).
+    uint256 public schedulerTaskId;
+
     /// LP custody: a single LP token locked until terms.lpLockUntilBlock.
     ERC20 public lpToken;
     uint256 public lpAmount;
@@ -178,6 +182,7 @@ contract GuardianCovenant is ICovenantHook {
         }
         taskId =
             IScheduler(sched).scheduleRecurring{value: msg.value}(address(this), terms.monitorEveryBlocks);
+        schedulerTaskId = taskId;
         emit SchedulerRegistered(taskId);
     }
 
@@ -346,10 +351,18 @@ contract GuardianCovenant is ICovenantHook {
 
     /// Derived exactly like the frontend badge: Enforcing if any wallet
     /// is frozen, Reviving if heartbeats have gone quiet, else Active.
+    /// The staleness check only arms once recurring wake-ups can actually
+    /// be expected — a Scheduler task exists, or the guardian has heart-
+    /// beaten after deployment (self-scheduled from inside the TEE).
+    /// Before that, silence is the expected state, not a lapse.
     function guardianStatus() public view returns (GuardianStatus) {
         if (frozenCount > 0) return GuardianStatus.Enforcing;
-        uint256 gap = uint256(terms.monitorEveryBlocks) * REVIVING_AFTER_INTERVALS;
-        if (gap > 0 && block.number > uint256(lastHeartbeatBlock) + gap) return GuardianStatus.Reviving;
+        if (schedulerTaskId != 0 || lastHeartbeatBlock > deployedBlock) {
+            uint256 gap = uint256(terms.monitorEveryBlocks) * REVIVING_AFTER_INTERVALS;
+            if (gap > 0 && block.number > uint256(lastHeartbeatBlock) + gap) {
+                return GuardianStatus.Reviving;
+            }
+        }
         return GuardianStatus.Active;
     }
 

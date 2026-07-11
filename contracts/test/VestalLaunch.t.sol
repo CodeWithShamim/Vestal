@@ -284,14 +284,24 @@ contract VestalLaunchTest is Test {
     function test_guardianStatusDerivation() public {
         assertEq(uint8(covenant.guardianStatus()), uint8(GuardianStatus.Active));
 
+        // Unarmed guardian (no Scheduler task, never heartbeaten past
+        // deployment): silence is expected, so staleness never trips.
+        vm.roll(block.number + uint256(MONITOR_EVERY) * 3 + 1);
+        assertEq(uint8(covenant.guardianStatus()), uint8(GuardianStatus.Active));
+
+        // A post-deploy heartbeat arms the deadman switch.
+        vm.prank(guardian);
+        covenant.heartbeat(keccak256("ckpt"), bytes32(uint256(3)));
+        assertEq(uint8(covenant.guardianStatus()), uint8(GuardianStatus.Active));
+        assertEq(covenant.lastHeartbeatBlock(), uint64(block.number));
+
         // Heartbeats gone quiet for > 3 monitor intervals: Reviving.
         vm.roll(block.number + uint256(MONITOR_EVERY) * 3 + 1);
         assertEq(uint8(covenant.guardianStatus()), uint8(GuardianStatus.Reviving));
 
         vm.prank(guardian);
-        covenant.heartbeat(keccak256("ckpt"), bytes32(uint256(3)));
+        covenant.heartbeat(keccak256("ckpt-2"), bytes32(uint256(4)));
         assertEq(uint8(covenant.guardianStatus()), uint8(GuardianStatus.Active));
-        assertEq(covenant.lastHeartbeatBlock(), uint64(block.number));
     }
 
     function test_schedulerDeferralRefundsFunding() public {
