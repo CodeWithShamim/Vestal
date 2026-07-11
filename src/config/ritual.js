@@ -56,6 +56,8 @@ export const VESTAL_CONTRACTS = {
   COVENANT_REGISTRY: env.VITE_COVENANT_REGISTRY || '0x56F78A7e8Afe11C69228283CCe3971F73486E7fE',
   /** VestalPoolFactory — token → LaunchPool market resolution. */
   POOL_FACTORY: env.VITE_POOL_FACTORY || '0xCdB83Cdeba6CD12116925E6AF5cDF17d35D2530B',
+  /** Guardian provider live on this deploy (mock until the agent precompiles ship). Display only. */
+  GUARDIAN_PROVIDER: env.VITE_GUARDIAN_PROVIDER || '0x15cce71713b686aaE99C441Ab4e3dEBf7853A889',
 };
 
 /** True when a registry address is configured — chain reads replace mocks. */

@@ -9,6 +9,7 @@ const SECTIONS = [
   { id: 'contracts', label: 'Contracts' },
   { id: 'market', label: 'Market' },
   { id: 'lifecycle', label: 'Guardian lifecycle' },
+  { id: 'dev-guide', label: 'Developer guide' },
   { id: 'dev-faq', label: 'Developer FAQ' },
   { id: 'roadmap', label: 'Roadmap' },
 ];
@@ -118,19 +119,26 @@ const ENFORCED = [
 ];
 
 const CONTRACTS = [
-  { name: 'VestalToken', role: 'Fixed-supply ERC20 whose every transfer is checked by its covenant. No admin, no upgrade path, no way to detach the covenant.' },
-  { name: 'GuardianCovenant', role: 'One per launch. Custodies vesting and LP, enforces freeze and sell caps in the transfer hook, and writes the attested enforcement log.' },
-  { name: 'VestalLaunchFactory', role: 'Turns the wizard’s covenant summary into an enforced reality in one transaction (the seven steps above).' },
-  { name: 'CovenantRegistry', role: 'Append-only, factory-only index of every launch. Explore enumerates it; token pages resolve through it.' },
-  { name: 'LaunchPool', role: 'Native-paired constant-product AMM with 0.3% fee and ERC20 LP shares. No owner, no fee switch, no pause.' },
-  { name: 'VestalPoolFactory', role: 'Permissionless one-pool-per-token registry — token → market resolution in a single read.' },
-  { name: 'IRitual + providers', role: 'The precompile boundary: assumed Ritual ABIs isolated in two files, with a mock provider so the full flow runs where the precompiles haven’t shipped.' },
+  { name: 'VestalToken.sol', role: 'Fixed-supply ERC20 whose every transfer is checked by its covenant. No admin, no upgrade path, no way to detach the covenant.' },
+  { name: 'GuardianCovenant.sol', role: 'One per launch. Custodies vesting and LP, enforces freeze and sell caps in the transfer hook, writes the attested enforcement log, and derives guardian status on-chain (the staleness check only arms once wake-ups can actually be expected). The vesting failsafe opens ~7 days (3,024,000 blocks) past a tranche’s due block.' },
+  { name: 'VestalLaunchFactory.sol', role: 'Turns the wizard’s covenant summary into an enforced reality in one transaction (the seven steps above). Validates terms and every tranche up front — zero-bps or past-due tranches revert before anything deploys.' },
+  { name: 'CovenantRegistry.sol', role: 'Append-only, factory-only index of every launch. Explore enumerates it; token pages resolve through it.' },
+  { name: 'LaunchPool.sol', role: 'Native-paired constant-product AMM with 0.3% fee and ERC20 LP shares. No owner, no fee switch, no pause. addLiquidity takes a minShares slippage guard so a swap landing between quote and deposit can’t silently dilute the depositor.' },
+  { name: 'VestalPoolFactory.sol', role: 'Permissionless one-pool-per-token registry — token → market resolution in a single read.' },
+  { name: 'interfaces/ICovenant.sol', role: 'Shared types: CovenantTerms, VestingTranche, the ActionType and GuardianStatus enums (their order is the wire format the frontend maps by index), and the transfer-hook interface.' },
+  { name: 'interfaces/IGuardianProvider.sol', role: 'The one interface covenant/factory logic sees for guardian provisioning — everything Ritual-specific hides behind it.' },
+  { name: 'interfaces/IRitual.sol', role: 'Assumed Ritual precompile ABIs + slot addresses. With the Ritual provider, the only file that touches them — precompile ABI changes stop here.' },
+  { name: 'providers/RitualGuardianProvider.sol', role: 'Provisions real sovereign agents via precompile 0x080C and registers heartbeats via 0x0820.' },
+  { name: 'providers/MockGuardianProvider.sol', role: 'Guardian = deployer EOA — lets the full flow run on anvil and on today’s testnet, where the agent precompiles have no code yet.' },
+  { name: 'lib/ERC20.sol', role: 'Minimal local ERC20 base (no OpenZeppelin dependency) used by the token and LP shares.' },
+  { name: 'script/*.s.sol', role: 'Deploy.s.sol (registry + provider + factory, auto-detecting mock vs Ritual provider), DemoLaunch.s.sol (a live demo launch with guardian log entries), DeployMarket.s.sol (pool factory + optional seeded, covenant-locked pool).' },
 ];
 
 const DEPLOYED = [
   { name: 'CovenantRegistry', addr: VESTAL_CONTRACTS.COVENANT_REGISTRY },
   { name: 'VestalLaunchFactory', addr: VESTAL_CONTRACTS.LAUNCH_FACTORY },
   { name: 'VestalPoolFactory', addr: VESTAL_CONTRACTS.POOL_FACTORY },
+  { name: 'MockGuardianProvider (active provider)', addr: VESTAL_CONTRACTS.GUARDIAN_PROVIDER },
 ];
 
 const LIFECYCLE = [
@@ -143,6 +151,27 @@ const LIFECYCLE = [
   { state: 'Failed', desc: 'The executor missed its heartbeat — crash, partition, or host loss.' },
   { state: 'Revived', desc: 'Consensus restores the agent from its last checkpoint, state and keys intact.' },
   { state: 'Fulfilled', desc: 'Every tranche released, every lock expired: the covenant is complete, its history permanent.' },
+];
+
+/** Suggested reading order for a developer new to the codebase. */
+const DEV_TOUR = [
+  { where: 'contracts/src/interfaces/ICovenant.sol', why: 'The shared vocabulary — terms, tranches, action and status enums. Every other file speaks these types.' },
+  { where: 'contracts/src/GuardianCovenant.sol', why: 'The heart of the system: custody, the transfer hook, the enforcement log. If you read one contract, read this one.' },
+  { where: 'contracts/src/VestalLaunchFactory.sol', why: 'How a launch becomes real — the seven atomic steps, and the up-front validation that makes bad covenants impossible.' },
+  { where: 'src/config/ritual.js', why: 'The frontend’s single source of chain truth: RPC, chain id, deployed addresses, precompile slots. Nothing else hardcodes chain values.' },
+  { where: 'src/chain/abi.js + src/chain/launches.js', why: 'The viem layer: hand-written minimal ABIs and the registry → Launch mapping. This is the read path everything on screen comes from.' },
+  { where: 'src/data/launches.js', why: 'The read-model contract — JSDoc typedefs and formatters the UI depends on. The chain layer maps into exactly these shapes.' },
+  { where: 'src/pages/TokenDetail.jsx', why: 'The showpiece page: how stores, formatters, the write flow (simulate → write → confirm), and the WalletGate ladder fit together.' },
+];
+
+/** The rules that keep the frontend and contracts in lockstep. */
+const DEV_RULES = [
+  { rule: 'One-way data flow', detail: 'config → src/chain (viem I/O) → src/data (stores + typedefs) → pages → components. Pages fetch via hooks; components are purely presentational and never fetch.' },
+  { rule: 'ABIs are mirrored by hand', detail: 'src/chain/abi.js holds minimal parseAbi strings — only what the frontend touches. Any change to a contract’s read/write surface must be mirrored there.' },
+  { rule: 'Enum order is a wire format', detail: 'ACTION_TYPES and GUARDIAN_STATUSES in abi.js map by index to the enums in ICovenant.sol. Reordering either side breaks the Guardian Panel silently.' },
+  { rule: 'Units convert at the chain layer', detail: 'Basis points → percent (bps / 100), days → blocks at 0.2 s/block (1 day ≈ 432,000 blocks), 18 decimals everywhere, prices in native tRITUAL per token. UI code never converts.' },
+  { rule: 'Every write simulates first', detail: 'simulate → write → waitForTransactionReceipt → check status. Covenant and pool reverts surface as readable errors before the wallet prompt.' },
+  { rule: 'Event reads are chunked and defensive', detail: 'eth_getLogs runs in 90k-block windows with retries and a session-level dedupe cache — the public RPC is load-balanced with inconsistent log history. Correctness never depends on log completeness.' },
 ];
 
 const DEV_FAQ = [
@@ -308,8 +337,8 @@ export default function Docs() {
 
           <DocSection id="contracts" title="Contracts">
             <p>
-              Seven contracts, no admin keys. Full source and 28 Foundry tests live in the repo’s{' '}
-              <span className="mono text-xs text-cream">contracts/</span> directory.
+              Twelve Solidity files, no admin keys anywhere. Full source and 31 Foundry tests live in
+              the repo’s <span className="mono text-xs text-cream">contracts/</span> directory.
             </p>
             <div className="flex flex-col gap-3.5">
               {CONTRACTS.map((c) => (
@@ -385,6 +414,57 @@ export default function Docs() {
                 </li>
               ))}
             </ol>
+          </DocSection>
+
+          <DocSection id="dev-guide" title="Developer guide">
+            <p>
+              New to the codebase? It is two projects in one repo — a Foundry suite in{' '}
+              <span className="mono text-xs text-cream">contracts/</span> and a React app in{' '}
+              <span className="mono text-xs text-cream">src/</span> that reads all state directly
+              from the deployed contracts. This is the reading order that makes it click fastest:
+            </p>
+            <ol className="mt-2 flex flex-col gap-3.5">
+              {DEV_TOUR.map((t, i) => (
+                <li key={t.where} className="flex gap-4">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-ember/40 bg-ember/5 text-[11px] font-semibold text-gold">
+                    {i + 1}
+                  </span>
+                  <div className="pt-1 min-w-0">
+                    <span className="mono break-all text-xs font-semibold text-cream">{t.where}</span>
+                    <p className="mt-0.5 text-sm text-fog">{t.why}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p>
+              Six conventions hold everywhere — internalize these and any file in the repo reads
+              the same way:
+            </p>
+            <dl className="flex flex-col gap-3.5">
+              {DEV_RULES.map((r) => (
+                <div key={r.rule}>
+                  <dt className="text-sm font-semibold text-cream">{r.rule}</dt>
+                  <dd className="mt-0.5 text-sm leading-relaxed text-fog">{r.detail}</dd>
+                </div>
+              ))}
+            </dl>
+            <Card className="p-5">
+              <div className="kicker">Everyday commands</div>
+              <pre className="mt-3 overflow-x-auto mono text-xs leading-relaxed text-fog">{`npm run dev      # frontend against the live testnet contracts
+npm run smoke    # SSR-renders every static route — the frontend's test suite
+cd contracts && forge test    # 31 Foundry tests
+
+# full-stack local dev: anvil → Deploy.s.sol (auto-mock) → VITE_* in .env.local`}</pre>
+            </Card>
+            <p>
+              A good end-to-end exercise: trace the dev-wallet sell cap. The wizard collects a
+              percent, <span className="mono text-xs text-cream">src/chain/factory.js</span> converts
+              it to basis points inside <span className="mono text-xs text-cream">createLaunch</span>,
+              the factory stores it in the covenant’s terms, and{' '}
+              <span className="mono text-xs text-cream">GuardianCovenant.beforeTokenTransfer</span>{' '}
+              reverts any sell that exceeds it — which the token page then explains via the simulated
+              error message. One number, four layers, no trust in between.
+            </p>
           </DocSection>
 
           <DocSection id="dev-faq" title="Developer FAQ">

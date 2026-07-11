@@ -37,6 +37,7 @@ guardian, and market state directly from deployed contracts. There are no mocks 
 - [Contract reference](#contract-reference)
 - [Frontend reference](#frontend-reference)
 - [Getting started](#getting-started)
+- [New developer guide](#new-developer-guide)
 - [Deployed addresses (Ritual Chain testnet)](#deployed-addresses-ritual-chain-testnet)
 - [Configuration](#configuration)
 - [Testing](#testing)
@@ -262,13 +263,16 @@ Notable choices:
 |---|---|
 | [VestalToken.sol](contracts/src/VestalToken.sol) | Fixed-supply ERC20; covenant hook on every transfer; covenant bound once by the factory, no admin, no upgrade path. |
 | [GuardianCovenant.sol](contracts/src/GuardianCovenant.sol) | One per launch. Custodies vesting + LP, enforces freeze/sell-cap in the transfer hook, exposes `guardianSummary()` / `guardianStatus()` / `vesting()` views shaped for the frontend, emits the enforcement log. |
-| [VestalLaunchFactory.sol](contracts/src/VestalLaunchFactory.sol) | The seven-step atomic launch (see [Step 2](#step-2--one-transaction-makes-it-real)). |
+| [VestalLaunchFactory.sol](contracts/src/VestalLaunchFactory.sol) | The seven-step atomic launch (see [Step 2](#step-2--one-transaction-makes-it-real)). Validates terms *and* every tranche up front — zero-bps or past-due tranches revert (`InvalidTranche`) before anything deploys. |
 | [CovenantRegistry.sol](contracts/src/CovenantRegistry.sol) | Append-only, factory-only launch index; `allLaunches()` powers Explore; one-shot `setFactory` wiring, then the deployer holds no further power. |
-| [LaunchPool.sol](contracts/src/LaunchPool.sol) | Native-paired constant-product AMM, 0.3% fee, ERC20 LP shares, no privileges. |
+| [LaunchPool.sol](contracts/src/LaunchPool.sol) | Native-paired constant-product AMM, 0.3% fee, ERC20 LP shares, no privileges. `addLiquidity(tokenIn, minShares)` carries a slippage guard so a swap landing between quote and deposit can't silently dilute the depositor. |
 | [VestalPoolFactory.sol](contracts/src/VestalPoolFactory.sol) | Permissionless token → pool registry. |
+| [interfaces/ICovenant.sol](contracts/src/interfaces/ICovenant.sol) | Shared types: `CovenantTerms`, `VestingTranche`, the `ActionType`/`GuardianStatus` enums (**enum order is the wire format** the frontend maps by index), and the transfer-hook interface. |
+| [interfaces/IGuardianProvider.sol](contracts/src/interfaces/IGuardianProvider.sol) | The one interface covenant/factory logic sees for guardian provisioning — everything Ritual-specific hides behind it. |
 | [interfaces/IRitual.sol](contracts/src/interfaces/IRitual.sol) | Assumed Ritual precompile ABIs + slot addresses — the *only* file (with the Ritual provider) that touches them. |
 | [providers/RitualGuardianProvider.sol](contracts/src/providers/RitualGuardianProvider.sol) | Provisions real sovereign agents via precompile `0x080C` / heartbeats via `0x0820`. |
 | [providers/MockGuardianProvider.sol](contracts/src/providers/MockGuardianProvider.sol) | Guardian = deployer EOA, for anvil and pre-precompile testnets. |
+| [lib/ERC20.sol](contracts/src/lib/ERC20.sol) | Minimal local ERC20 base (no OpenZeppelin dependency) used by the token and LP shares. |
 | [script/Deploy.s.sol](contracts/script/Deploy.s.sol) | Deploys registry + provider (auto-detecting mock vs Ritual) + factory, wires them. |
 | [script/DemoLaunch.s.sol](contracts/script/DemoLaunch.s.sol) | Creates a live demo launch and writes guardian log entries. |
 | [script/DeployMarket.s.sol](contracts/script/DeployMarket.s.sol) | Deploys the pool factory and (given `TOKEN=`) creates, seeds, and covenant-locks a pool in one run. |
@@ -303,7 +307,8 @@ Frontend ↔ contract mapping:
 | `/explore` | [Explore.jsx](src/pages/Explore.jsx) | Every registered launch, read live from the registry. |
 | `/token/:id` | [TokenDetail.jsx](src/pages/TokenDetail.jsx) | The showpiece: Guardian Panel (status, heartbeat, revivals, enforcement log with attestations), covenant terms, vesting timeline, live market (price chart from Swap events, reserves, buy/sell widget). When the token has no pool yet, the connected creator sees the open-market flow instead. `:id` is the token address. |
 | `/launch` | [Launch.jsx](src/pages/Launch.jsx) | The 4-step wizard ending in a real `createLaunch` transaction. |
-| `/docs` | [Docs.jsx](src/pages/Docs.jsx) | In-app documentation: architecture, lifecycle, contracts, FAQ, roadmap. |
+| `/docs` | [Docs.jsx](src/pages/Docs.jsx) | In-app documentation: architecture, lifecycle, contracts, developer guide, FAQ, roadmap. |
+| `/portfolio` | [Portfolio.jsx](src/pages/Portfolio.jsx) | The connected wallet's holdings, LP positions, and trade history across all launches. |
 
 **Components** ([src/components/](src/components/)): `Card`, `Badge`, `StatBlock`, `Timeline`,
 `StepIndicator`, `Accordion`, `Sparkline`, `AllocationDonut`, `HeartbeatMonitor`, `TrustMeter`,
@@ -379,6 +384,72 @@ Then copy the printed addresses into `VESTAL_CONTRACTS` in
 
 ---
 
+## New developer guide
+
+A guided path through the codebase for someone seeing it for the first time. The repo is two
+projects in one — a Foundry suite in `contracts/` and a React app in `src/` that reads all state
+directly from the deployed contracts (no mocks, no backend).
+
+### Read the code in this order
+
+1. **[contracts/src/interfaces/ICovenant.sol](contracts/src/interfaces/ICovenant.sol)** — the
+   shared vocabulary: `CovenantTerms`, `VestingTranche`, the `ActionType`/`GuardianStatus` enums,
+   and the transfer-hook interface. Every other file speaks these types.
+2. **[contracts/src/GuardianCovenant.sol](contracts/src/GuardianCovenant.sol)** — the heart of
+   the system: custody, the transfer hook (freeze + sell cap), the attested enforcement log, the
+   permissionless vesting failsafe. If you read one contract, read this one.
+3. **[contracts/src/VestalLaunchFactory.sol](contracts/src/VestalLaunchFactory.sol)** — how a
+   launch becomes real: seven atomic steps in one transaction, with all terms validated up front.
+4. **[src/config/ritual.js](src/config/ritual.js)** — the frontend's single source of chain
+   truth: RPC, chain id, deployed addresses, precompiles. Nothing else hardcodes chain values.
+5. **[src/chain/abi.js](src/chain/abi.js) + [src/chain/launches.js](src/chain/launches.js)** —
+   the viem layer: hand-written minimal ABIs and the registry → `Launch` mapping. Everything on
+   screen comes through here.
+6. **[src/data/launches.js](src/data/launches.js)** — the read-model contract: JSDoc typedefs
+   and formatters the UI depends on. The chain layer maps contract state into exactly these shapes.
+7. **[src/pages/TokenDetail.jsx](src/pages/TokenDetail.jsx)** — the showpiece page: store hooks,
+   formatters, the simulate → write → confirm flow, and the `WalletGate` connect/switch ladder.
+
+### The six conventions that hold everywhere
+
+- **One-way data flow** — `config → src/chain (viem I/O) → src/data (stores + typedefs) → pages
+  → components`. Pages fetch via the `src/data/` hooks; components are purely presentational.
+- **ABIs are mirrored by hand** — `src/chain/abi.js` holds minimal `parseAbi` strings, only what
+  the frontend touches. Any change to a contract's read/write surface must be mirrored there.
+- **Enum order is a wire format** — `ACTION_TYPES`/`GUARDIAN_STATUSES` in `abi.js` map by index
+  to the enums in `ICovenant.sol`. Reordering either side breaks the Guardian Panel silently.
+- **Units convert at the chain layer, never in UI** — basis points → percent (`bps / 100`),
+  days → blocks at 0.2 s/block (1 day ≈ 432,000 blocks), 18 decimals everywhere, prices in
+  native tRITUAL per token.
+- **Every write simulates first** — simulate → write → `waitForTransactionReceipt` → check
+  `receipt.status`, so covenant/pool reverts surface as readable errors before the wallet prompt.
+- **Event reads are chunked and defensive** — 90k-block `eth_getLogs` windows with retries and a
+  session-level dedupe cache; correctness never depends on log completeness (state comes from
+  contract storage, logs only feed timelines).
+
+### A good first exercise
+
+Trace the dev-wallet sell cap end to end: the wizard collects a percent
+([Launch.jsx](src/pages/Launch.jsx)) → [src/chain/factory.js](src/chain/factory.js) converts it
+to basis points inside `createLaunch` → the factory stores it in the covenant's terms →
+`GuardianCovenant.beforeTokenTransfer` reverts any sell that exceeds it → the token page surfaces
+that revert as a readable error via simulation. One number, four layers, no trust in between.
+
+### Common tasks
+
+| Task | What to touch |
+|---|---|
+| Add a page/route | `src/pages/`, route in [src/App.jsx](src/App.jsx), **and the `routes` array in [scripts/prerender.mjs](scripts/prerender.mjs)** (static routes only) — then `npm run smoke` |
+| Read new contract state | Add the fragment to `src/chain/abi.js`, map it in the relevant `src/chain/` module into the `src/data/launches.js` typedef shapes |
+| Change a contract's surface | Edit in `contracts/src/`, `forge test`, mirror the ABI in `src/chain/abi.js`, keep both READMEs + `/docs` in sync |
+| Redeploy to testnet | `forge script script/Deploy.s.sol --broadcast`, then update `VESTAL_CONTRACTS` in [src/config/ritual.js](src/config/ritual.js) and the address tables in both READMEs |
+| Verify frontend changes | `npm run smoke` — SSR-executes every static route; there is no other frontend test suite |
+
+The in-app docs at `/docs` carry a condensed version of this guide plus the protocol-level
+documentation (architecture, enforcement, guardian lifecycle).
+
+---
+
 ## Deployed addresses (Ritual Chain testnet)
 
 Chain id **1979** · RPC `https://rpc.ritualfoundation.org` · deployed 2026-07-11:
@@ -421,13 +492,14 @@ and the `PRECOMPILES` map (Scheduler placeholder; HTTP `0x0801`, LLM `0x0802`, s
 ## Testing
 
 ```bash
-# Contracts — 28 Foundry tests: factory wiring, vesting (guardian + failsafe paths),
-# sell caps and window rolling, freeze, LP lock/withdraw, status derivation,
-# enforcement log shape, and the AMM (quotes, liquidity, swaps, covenant lock)
+# Contracts — 31 Foundry tests: factory wiring + tranche validation, vesting
+# (guardian + failsafe paths), sell caps and window rolling, freeze, LP lock/withdraw,
+# status derivation, enforcement log shape, and the AMM (quotes, liquidity with
+# slippage guard, swaps, covenant lock)
 cd contracts && forge test
 
-# Frontend — SSR-renders /, /explore, /launch, /docs through Vite's pipeline,
-# executing every page component for real
+# Frontend — SSR-renders /, /explore, /launch, /docs, /portfolio through Vite's
+# pipeline, executing every page component for real
 npm run smoke
 ```
 
@@ -477,15 +549,16 @@ vestal/
 │   │   ├── LaunchPool.sol            constant-product AMM, ERC20 LP shares
 │   │   ├── VestalPoolFactory.sol     token → pool registry
 │   │   ├── interfaces/               ICovenant, IGuardianProvider, IRitual (precompile boundary)
-│   │   └── providers/                RitualGuardianProvider, MockGuardianProvider
+│   │   ├── providers/                RitualGuardianProvider, MockGuardianProvider
+│   │   └── lib/                      minimal local ERC20 base (no OpenZeppelin)
 │   ├── script/                 Deploy, DemoLaunch, DeployMarket
-│   └── test/                   28 tests: VestalLaunch.t.sol, LaunchPool.t.sol
+│   └── test/                   31 tests: VestalLaunch.t.sol, LaunchPool.t.sol
 ├── src/
 │   ├── config/ritual.js        every chain constant, env-overridable
-│   ├── chain/                  viem layer: wallet, launches, market, factory, abi
-│   ├── data/                   store hooks (useLaunches, useMarket) + site copy + fixtures
+│   ├── chain/                  viem layer: wallet, launches, market, factory, portfolio, activity, abi
+│   ├── data/                   store hooks (useLaunches, useMarket, usePortfolio, useActivity) + site copy + fixtures
 │   ├── components/             presentational primitives
-│   ├── pages/                  Landing, Explore, TokenDetail, Launch, Docs
+│   ├── pages/                  Landing, Explore, TokenDetail, Launch, Docs, Portfolio
 │   ├── App.jsx                 routes
 │   └── index.css               Tailwind v4 theme (ink/cream/ember palette)
 ├── scripts/prerender.mjs       SSR smoke test (npm run smoke)

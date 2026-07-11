@@ -29,6 +29,26 @@ transfer path, provisions the sovereign agent committed to `termsHash`, and
 registers the launch. After that, no one — factory, creator, or Vestal — holds
 any authority over the launch. There are no admin keys anywhere in the system.
 
+## Contract inventory
+
+| File | Role |
+| ---- | ---- |
+| `src/VestalToken.sol` | Fixed-supply ERC20; covenant hook on every transfer; covenant bound once by the factory — no admin, no upgrade path. |
+| `src/GuardianCovenant.sol` | One per launch. Custodies vesting + LP, enforces freeze/sell-cap in the transfer hook, emits the attested enforcement log, derives `guardianStatus()` on-chain (staleness check arms only once wake-ups can be expected — Scheduler task registered or a post-deploy heartbeat). Failsafe grace: `FAILSAFE_GRACE_BLOCKS = 3_024_000` (~7 days at 0.2 s blocks). |
+| `src/VestalLaunchFactory.sol` | The one-transaction launch. Validates terms and every tranche up front — zero-bps or past-due tranches revert with `InvalidTranche`. |
+| `src/CovenantRegistry.sol` | Append-only, factory-only launch index; one-shot `setFactory` wiring. |
+| `src/LaunchPool.sol` | Native-paired constant-product AMM, 0.3% fee, ERC20 LP shares, explicit reserves, reentrancy lock. `addLiquidity(tokenIn, minShares)` takes a slippage guard so a swap between quote and deposit can't silently dilute the depositor. |
+| `src/VestalPoolFactory.sol` | Permissionless one-pool-per-token registry (`poolOf`). |
+| `src/interfaces/ICovenant.sol` | Shared types + enums (`ActionType`, `GuardianStatus` — **order is the wire format** the frontend maps by index) + the transfer-hook interface. |
+| `src/interfaces/IGuardianProvider.sol` | The only guardian-provisioning interface covenant/factory logic sees. |
+| `src/interfaces/IRitual.sol` | Assumed Ritual precompile ABIs + slot addresses (the placeholder boundary, below). |
+| `src/providers/RitualGuardianProvider.sol` | Real sovereign-agent provisioning via `0x080C`, heartbeats via `0x0820`. |
+| `src/providers/MockGuardianProvider.sol` | Guardian = deployer EOA, for anvil and pre-precompile testnets. |
+| `src/lib/ERC20.sol` | Minimal local ERC20 base — no OpenZeppelin dependency. |
+| `script/Deploy.s.sol` | Registry + provider (auto-detects mock vs Ritual) + factory, wired. |
+| `script/DemoLaunch.s.sol` | Creates a live demo launch and writes guardian log entries. |
+| `script/DeployMarket.s.sol` | Deploys the pool factory and (given `TOKEN=`) creates, seeds, and covenant-locks a pool. |
+
 ## What is actually enforced
 
 - **Vesting** — tranches live in covenant custody; only the guardian can
@@ -104,7 +124,7 @@ timestamps are in **milliseconds**.
 
 ```bash
 forge build          # compile
-forge test           # 28 tests: wiring, vesting, caps, freeze, LP, status, log, pool
+forge test           # 31 tests: wiring + tranche validation, vesting, caps, freeze, LP, status, log, pool
 forge script script/Deploy.s.sol                    # dry run
 forge script script/Deploy.s.sol --rpc-url $RITUAL_RPC_URL --broadcast
 FACTORY=0x... forge script script/DemoLaunch.s.sol --rpc-url http://localhost:8545 --broadcast
