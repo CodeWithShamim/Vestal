@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { fmtBlock, shortHash, blocksToApproxTime } from '../data/launches.js';
 
 const TYPE_META = {
@@ -28,48 +29,84 @@ function EventIcon({ type }) {
   );
 }
 
-/** Enforcement log timeline — every entry carries its TEE attestation hash. */
-export default function Timeline({ events, currentBlock }) {
+/**
+ * Enforcement log timeline — every entry carries its TEE attestation hash.
+ * Optional `pageSize` paginates long logs; the page index is clamped every render
+ * because the events array can shrink or grow under us on background refetches.
+ */
+export default function Timeline({ events, currentBlock, pageSize }) {
+  const [page, setPage] = useState(0);
   if (events.length === 0) {
     return <p className="text-sm text-faint">No enforcement actions recorded in the recent block window.</p>;
   }
+  const paginated = pageSize > 0 && events.length > pageSize;
+  const pageCount = paginated ? Math.ceil(events.length / pageSize) : 1;
+  const current = Math.min(page, pageCount - 1);
+  const visible = paginated ? events.slice(current * pageSize, (current + 1) * pageSize) : events;
   return (
-    <ol className="relative">
-      {events.map((e, i) => {
-        const meta = TYPE_META[e.type] ?? TYPE_META.wake;
-        return (
-          <li key={`${e.block}-${i}`} className="relative flex gap-4 pb-6 last:pb-0">
-            {i < events.length - 1 && (
-              <span aria-hidden="true" className="absolute left-[15px] top-8 h-full w-px bg-linefaint" />
-            )}
-            <span
-              className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-surface ${meta.tone}`}
-            >
-              <EventIcon type={e.type} />
-            </span>
-            <div className="min-w-0 pt-0.5">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                <span className={`text-xs font-semibold uppercase tracking-wider ${meta.tone.split(' ')[0]}`}>
-                  {meta.label}
-                </span>
-                <span className="mono text-faint">
-                  block {fmtBlock(e.block)} · {blocksToApproxTime(currentBlock - e.block)} ago
+    <div>
+      <ol className="relative">
+        {visible.map((e, i) => {
+          const meta = TYPE_META[e.type] ?? TYPE_META.wake;
+          return (
+            <li key={`${e.block}-${i}`} className="relative flex gap-4 pb-6 last:pb-0">
+              {i < visible.length - 1 && (
+                <span aria-hidden="true" className="absolute left-[15px] top-8 h-full w-px bg-linefaint" />
+              )}
+              <span
+                className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-surface ${meta.tone}`}
+              >
+                <EventIcon type={e.type} />
+              </span>
+              <div className="min-w-0 pt-0.5">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                  <span className={`text-xs font-semibold uppercase tracking-wider ${meta.tone.split(' ')[0]}`}>
+                    {meta.label}
+                  </span>
+                  <span className="mono text-faint">
+                    block {fmtBlock(e.block)} · {blocksToApproxTime(currentBlock - e.block)} ago
+                  </span>
+                </div>
+                <p className="mt-1 text-sm leading-relaxed text-fog">{e.detail}</p>
+                <span
+                  title={e.attestation}
+                  className="mono mt-1 inline-flex items-center gap-1.5 text-ember/90"
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M6 1.2 10.5 3v3c0 2.4-1.8 4.2-4.5 4.8C3.3 10.2 1.5 8.4 1.5 6V3L6 1.2z" stroke="currentColor" strokeWidth="1.1" />
+                  </svg>
+                  TEE attestation {shortHash(e.attestation)}
                 </span>
               </div>
-              <p className="mt-1 text-sm leading-relaxed text-fog">{e.detail}</p>
-              <span
-                title={e.attestation}
-                className="mono mt-1 inline-flex items-center gap-1.5 text-ember/90"
-              >
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                  <path d="M6 1.2 10.5 3v3c0 2.4-1.8 4.2-4.5 4.8C3.3 10.2 1.5 8.4 1.5 6V3L6 1.2z" stroke="currentColor" strokeWidth="1.1" />
-                </svg>
-                TEE attestation {shortHash(e.attestation)}
-              </span>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+      {paginated && (
+        <div className="mt-5 flex items-center justify-between border-t border-linefaint pt-3">
+          <span className="text-[11px] uppercase tracking-wider text-faint">
+            {current * pageSize + 1}–{Math.min((current + 1) * pageSize, events.length)} of {events.length}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={current === 0}
+              onClick={() => setPage(current - 1)}
+              className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-cream transition-colors duration-200 hover:border-fog/60 hover:bg-raise disabled:pointer-events-none disabled:opacity-40"
+            >
+              Newer
+            </button>
+            <button
+              type="button"
+              disabled={current === pageCount - 1}
+              onClick={() => setPage(current + 1)}
+              className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-cream transition-colors duration-200 hover:border-fog/60 hover:bg-raise disabled:pointer-events-none disabled:opacity-40"
+            >
+              Older
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

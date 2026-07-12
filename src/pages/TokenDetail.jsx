@@ -562,7 +562,7 @@ export default function TokenDetail() {
                   <span className="text-[11px] text-faint">newest first</span>
                 </div>
                 <div className="mt-4">
-                  <Timeline events={launch.log} currentBlock={currentBlock} />
+                  <Timeline events={launch.log} currentBlock={currentBlock} pageSize={5} />
                 </div>
               </div>
             </div>
