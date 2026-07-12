@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import FlameMark from './FlameMark.jsx';
 
 const external = [
-  { label: 'GitHub', href: '#github' },
   { label: 'X / Twitter', href: '#x' },
   { label: 'Discord', href: '#discord' },
 ];
