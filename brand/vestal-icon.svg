@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- App icon: guardian flame on an ink rounded square, matching FlameMark.jsx -->
+  <defs>
+    <!-- coordinates are in the flame path's local 32-unit space -->
+    <linearGradient id="flame" x1="16" y1="3" x2="16" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#F2601F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.72" r="0.65">
+      <stop stop-color="#F2601F" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#F2601F" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="squircle">
+      <rect width="1024" height="1024" rx="232"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#squircle)">
+    <rect width="1024" height="1024" fill="#0a0a0c"/>
+    <rect width="1024" height="1024" fill="url(#glow)"/>
+    <!-- guardian ring -->
+    <circle cx="512" cy="512" r="400" stroke="#f2ede3" stroke-opacity="0.14" stroke-width="10"/>
+    <!-- flame, centered (native bounds ~x7–21.6, y3–30 in a 32-unit box) -->
+    <g transform="translate(512 512) scale(24.5) translate(-14.3 -16.5)">
+      <path d="M16 3c3 5-4 7-1 12 1.6 2.7 5 2.4 6-1 4 6-1 15-5 15S7 24 9 17c1.5-5.2 6-7 7-14z" fill="url(#flame)"/>
+    </g>
+  </g>
+</svg>

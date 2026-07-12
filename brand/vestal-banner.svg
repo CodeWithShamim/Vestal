@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" fill="none">
+  <!-- Social banner (1500x500). Lockup is centered so X/Twitter edge crops stay safe. -->
+  <defs>
+    <!-- coordinates are in the flame path's local 32-unit space -->
+    <linearGradient id="flame" x1="16" y1="3" x2="16" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#F2601F"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="690" y1="0" x2="810" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#F2601F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="1" r="0.75">
+      <stop stop-color="#F2601F" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#F2601F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1500" height="500" fill="#0a0a0c"/>
+  <rect width="1500" height="500" fill="url(#glow)"/>
+  <!-- guardian rings drifting off the edges -->
+  <circle cx="105" cy="250" r="255" stroke="#f2ede3" stroke-opacity="0.05" stroke-width="2"/>
+  <circle cx="105" cy="250" r="330" stroke="#f2601f" stroke-opacity="0.08" stroke-width="2"/>
+  <circle cx="1395" cy="250" r="255" stroke="#f2ede3" stroke-opacity="0.05" stroke-width="2"/>
+  <circle cx="1395" cy="250" r="330" stroke="#f2601f" stroke-opacity="0.08" stroke-width="2"/>
+  <!-- guardian heartbeat -->
+  <path d="M300 448 H688 l14 -22 l18 40 l14 -18 H1200" stroke="#f2601f" stroke-opacity="0.3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- flame mark -->
+  <g transform="translate(750 92) scale(2.5) translate(-14.3 -16.5)">
+    <path d="M16 3c3 5-4 7-1 12 1.6 2.7 5 2.4 6-1 4 6-1 15-5 15S7 24 9 17c1.5-5.2 6-7 7-14z" fill="url(#flame)"/>
+  </g>
+  <text x="750" y="172" text-anchor="middle" fill="#9a948a" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="21" font-weight="600" letter-spacing="7">TOKEN LAUNCHPAD ON RITUAL CHAIN</text>
+  <text x="750" y="316" text-anchor="middle" fill="#f2ede3" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="152" font-weight="600" letter-spacing="10">VESTAL</text>
+  <rect x="690" y="346" width="120" height="4" rx="2" fill="url(#rule)"/>
+  <text x="750" y="404" text-anchor="middle" fill="#9a948a" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="31" font-style="italic">Launch terms are physics, not promises.</text>
+</svg>

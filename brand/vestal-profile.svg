@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000" fill="none">
+  <!-- Profile image: full-bleed so a circular avatar crop stays clean; all content sits inside r≈430 -->
+  <defs>
+    <!-- coordinates are in the flame path's local 32-unit space -->
+    <linearGradient id="flame" x1="16" y1="3" x2="16" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#F2601F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.68" r="0.6">
+      <stop stop-color="#F2601F" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#F2601F" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ringgrad" x1="180" y1="180" x2="820" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#F2601F" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="1000" fill="#0a0a0c"/>
+  <rect width="1000" height="1000" fill="url(#glow)"/>
+  <!-- guardian ring, inside the circle crop -->
+  <circle cx="500" cy="500" r="382" stroke="url(#ringgrad)" stroke-width="8"/>
+  <circle cx="500" cy="500" r="352" stroke="#f2ede3" stroke-opacity="0.08" stroke-width="2"/>
+  <!-- flame, centered -->
+  <g transform="translate(500 500) scale(20.5) translate(-14.3 -16.5)">
+    <path d="M16 3c3 5-4 7-1 12 1.6 2.7 5 2.4 6-1 4 6-1 15-5 15S7 24 9 17c1.5-5.2 6-7 7-14z" fill="url(#flame)"/>
+  </g>
+</svg>
