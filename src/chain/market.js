@@ -23,8 +23,6 @@ const BLOCKS_24H = Math.round(86_400 / BLOCK_TIME_SECONDS);
 
 const toNative = (wei) => Number(wei) / 1e18;
 
-const bigintMin = (a, b) => (a < b ? a : b);
-
 /** Babylonian integer sqrt, matching LaunchPool's first-deposit share mint. */
 function bigintSqrt(x) {
   if (x < 2n) return x;
@@ -304,27 +302,46 @@ export async function openMarket({ token, covenant, tokenAmount, nativeAmount, o
   onStep('seed');
   const tokenIn = parseEther(tokenAmount.toFixed(18));
   const nativeIn = parseEther(nativeAmount.toFixed(18));
-  await ensureAllowance(client, wallet, { token, spender: pool, amount: tokenIn });
-  // Mirror the pool's share formula and apply the same 1% guard as
-  // trades: without a floor, a swap landing between this quote and the
-  // deposit shifts the ratio and silently donates the excess side to
-  // existing LPs. A fresh pool mints sqrt(native * tokens) — deterministic,
-  // but quoted the same way in case someone else seeded first.
   const poolC = { address: pool, abi: POOL_ABI };
-  const [[reserveNative, reserveToken], shareSupply] = await Promise.all([
-    client.readContract({ ...poolC, functionName: 'reserves' }),
+
+  // createPool is permissionless and the first addLiquidity sets the
+  // opening price, so a pool can already hold liquidity by the time this
+  // runs. Seeding into it would add our deposit at *its* ratio, and
+  // addLiquidity's min() donates the over-supplied side to the existing
+  // LPs — a front-runner who pre-seeds a skewed 1-wei pool can siphon the
+  // creator's seed that way, and the per-deposit share guard can't catch
+  // it because shares are quoted against the manipulated reserves.
+  //
+  // So this flow only ever opens a *fresh* market. A non-empty pool is
+  // either our own resumed run (we already hold shares, or the covenant
+  // already custodies them) — in which case we skip straight to locking —
+  // or someone else's, which we refuse rather than deposit into.
+  const [shareSupply, creatorShares, covenantShares] = await Promise.all([
     client.readContract({ ...poolC, functionName: 'totalSupply' }),
+    client.readContract({ ...poolC, functionName: 'balanceOf', args: [wallet.account.address] }),
+    client.readContract({ ...poolC, functionName: 'balanceOf', args: [covenant] }),
   ]);
-  const expectedShares =
-    shareSupply === 0n
-      ? bigintSqrt(nativeIn * tokenIn)
-      : bigintMin((nativeIn * shareSupply) / reserveNative, (tokenIn * shareSupply) / reserveToken);
-  await writeAndConfirm(client, wallet, {
-    ...poolC,
-    functionName: 'addLiquidity',
-    args: [tokenIn, (expectedShares * 99n) / 100n],
-    value: nativeIn,
-  });
+  const isOurResume = creatorShares > 0n || covenantShares > 0n;
+  if (shareSupply > 0n && !isOurResume) {
+    throw new Error(
+      'This token already has a seeded market with an opening price set by another account. Trade against the existing pool instead of opening a new one.',
+    );
+  }
+
+  if (shareSupply === 0n) {
+    await ensureAllowance(client, wallet, { token, spender: pool, amount: tokenIn });
+    // Fresh pool: addLiquidity mints sqrt(native * tokens). The 1% floor
+    // is the same guard trades use — it covers a swap landing between this
+    // quote and the deposit; it does not protect against depositing into
+    // someone else's pool, which is why that case is refused above.
+    const expectedShares = bigintSqrt(nativeIn * tokenIn);
+    await writeAndConfirm(client, wallet, {
+      ...poolC,
+      functionName: 'addLiquidity',
+      args: [tokenIn, (expectedShares * 99n) / 100n],
+      value: nativeIn,
+    });
+  }
 
   onStep('lock');
   const shares = await client.readContract({
