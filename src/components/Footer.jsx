@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import FlameMark from './FlameMark.jsx';
 
 const external = [
-  { label: 'X / Twitter', href: '#x' },
+  { label: 'X / Twitter', href: 'https://x.com/vestal_org' },
   { label: 'Discord', href: '#discord' },
 ];
 
@@ -41,18 +41,25 @@ export default function Footer() {
             <div>
               <div className="kicker">Community</div>
               <ul className="mt-4 flex flex-col gap-2.5 text-sm">
-                {external.map((l) => (
-                  <li key={l.label}>
-                    <a
-                      className="text-fog transition-colors hover:text-cream"
-                      href={l.href}
-                      title="Community links go live with the public beta"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
+                {external.map((l) => {
+                  const live = l.href.startsWith('http');
+                  return (
+                    <li key={l.label}>
+                      <a
+                        className="text-fog transition-colors hover:text-cream"
+                        href={l.href}
+                        {...(live
+                          ? { target: '_blank', rel: 'noreferrer' }
+                          : {
+                              title: 'Community links go live with the public beta',
+                              onClick: (e) => e.preventDefault(),
+                            })}
+                      >
+                        {l.label}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
             <div>
